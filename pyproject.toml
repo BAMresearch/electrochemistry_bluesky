@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "electrochemistry-bluesky"
+dynamic = ["version"]
+description = "Bluesky battery-cycling experiments on the Keithley 2460: run sheets, QueueServer, HDF5 run files"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE.md"]
+requires-python = ">=3.11"
+dependencies = [
+    "keithley2460-ophyd>=0.1.0.dev0,<0.2",
+    "bluesky>=1.16,<1.17",
+    "event-model>=1.23,<2",
+    "numpy>=2,<3",
+    "pandas>=2.2,<3",
+    "openpyxl>=3.1,<4",
+    "h5py>=3.11,<4",
+    "plotly>=6,<7",
+    "nbformat>=5.10,<6",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+[project.optional-dependencies]
+visa = ["keithley2460-ophyd[visa]"]
+queueserver = ["bluesky-queueserver>=0.0.25,<0.1", "bluesky-queueserver-api>=0.0.13,<0.1"]
+
+[project.urls]
+repository = "https://github.com/BAMresearch/electrochemistry_bluesky"
+issues = "https://github.com/BAMresearch/electrochemistry_bluesky/issues"
+
+[project.scripts]
+oe-new-run = "electrochemistry_bluesky.notebook:main"
+oe-new-viewer = "electrochemistry_bluesky.notebook:view_main"
+oe-template = "electrochemistry_bluesky.run_sheet:template_main"
+oe-archive-retained = "electrochemistry_bluesky.queueserver:archive_main"
+oe-recover-run = "electrochemistry_bluesky.recovery:main"
+oe-enqueue = "electrochemistry_bluesky.queueserver:enqueue_main"
+oe-validate = "electrochemistry_bluesky.queueserver:validate_main"
+
+[dependency-groups]
+test = ["pytest>=8,<10", "keithley2460-ophyd[testing]"]
+lint = ["ruff>=0.11,<1", "mypy>=1.15,<3"]
+docs = ["mkdocs>=1.6,<2"]
+notebook = ["ipykernel>=6,<8"]
+dev = [
+    "bluesky-queueserver>=0.0.25,<0.1",
+    "bluesky-queueserver-api>=0.0.13,<0.1",
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "docs"},
+    {include-group = "notebook"},
+]
+
+[tool.uv]
+required-version = ">=0.12.19"
+
+# Until keithley2460-ophyd is on PyPI: a tagged release from GitHub.
+[tool.uv.sources]
+keithley2460-ophyd = { git = "https://github.com/BAMresearch/keithley2460_ophyd", tag = "v0.1.0.dev0" }
+
+[tool.setuptools.dynamic]
+version = {attr = "electrochemistry_bluesky.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+electrochemistry_bluesky = ["py.typed", "templates/*.ipynb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "queueserver: starts redis-server and an RE Manager (skipped without redis-server)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["electrochemistry_bluesky"]
+known-third-party = ["keithley2460_ophyd"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["bluesky.*", "ophyd.*"]
+follow_untyped_imports = true

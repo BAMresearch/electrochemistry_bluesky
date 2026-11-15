@@ -1,0 +1,6 @@
+# Audited sdist allowlist: package (with notebook templates), tests, QueueServer
+# startup and the generic examples.
+include README.md CHANGELOG.md LICENSE.md
+recursive-include src *.py py.typed *.ipynb
+recursive-include tests *.py *.h5
+recursive-include qserver *.py *.yaml *.toml *.sh *.md

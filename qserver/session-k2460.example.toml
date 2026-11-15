@@ -1,0 +1,28 @@
+# QueueServer session for the 2460: copy, fill in and review every value, then
+# OE_SESSION=<copy>.toml. Loading the session is the confirmation for every run
+# in it: it must describe the instrument, wiring and cell actually connected.
+# Limits apply to every queued run; HIGH-Z off mode is set and read back by the
+# runtime for both source functions. This example is deliberately not runnable:
+# the resource and serial below are placeholders and are refused on connect.
+backend = "k2460"
+data_dir = "~/k2460-data"
+resource = "TCPIP0::<instrument-ip>::5025::SOCKET"
+serial = "<instrument-serial-number>"
+terminals = "front"
+poll_period_s = 1.0
+# start_timeout_s = 600.0  # external START: abort if none arrives in time
+
+[limits]  # PLACEHOLDERS: set from the connected cell's voltage window and current
+v_min_abs = 0.0
+v_max_abs = 2.5
+i_max_abs = 0.005
+max_duration_s = 200000.0
+max_records = 1000000
+
+# [directions]  # optional: this cell's words for start_with / cv_after in the run sheet
+# sodiation = "discharge"
+# desodiation = "charge"
+
+[sample]  # optional, descriptive only: written to each run file's /entry/sample
+cell = "cell-01"
+capacity_mah = 0.5

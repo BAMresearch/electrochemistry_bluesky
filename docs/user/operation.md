@@ -1,0 +1,181 @@
+# At the instrument
+
+The procedure at the instrument, in order. Prepare the run sheet and session
+files beforehand and validate them ([Run sheets](run-sheets.md),
+[Sessions](sessions.md)).
+
+<span style="color:red">**Open the environment before connecting a cell.** After power-on the 2460's output-off mode is NORMAL, which pulls a connected cell towards 0 V. Opening the environment sets HIGH-Z. For the same reason, disconnect the cell before switching the 2460 off.</span>
+
+## 1. Instrument and wiring
+
+1. Switch the 2460 on. It may have been off overnight: the packaged program is
+   installed again automatically, with the output OFF.
+2. Ethernet from the laptop to the 2460. Only one program may talk to the 2460:
+   close any notebook that uses it.
+3. Digital I/O (the DB-9 connector on the rear):
+
+   | Line | Signal | Direction | Meaning |
+   |---|---|---|---|
+   | 1 | READY | out | High while an external-start run waits for START |
+   | 2 | BUSY | out | High from the start of a run until the output is OFF |
+   | 4 | MARKER | out | Short pulse at the start of every step |
+   | 6 | START | in | Rising edge starts an external-start run |
+
+4. Check the connection; this only reads from the instrument:
+
+   ```sh
+   k2460-diagnose --resource 'TCPIP0::<instrument-ip>::5025::SOCKET' --backend '@py' --require-language TSP
+   ```
+
+   Expect your instrument's serial number (as in the session file), TSP,
+   output OFF.
+
+## 2. Start the QueueServer
+
+Terminal 1, from the repository:
+
+```sh
+qserver/start-k2460-re-manager.sh ~/sessions/cell01.toml
+```
+
+It starts redis if needed, prints the session's limits and runs the RE Manager
+in this terminal. Leave it open: it shows each run's progress. To keep it
+running when the terminal or editor closes, start it detached instead:
+`qserver/start-k2460-re-manager.sh --detach S.toml` (log in
+`~/k2460-data/re-manager.log`). Either way, on macOS the script keeps the
+computer from sleeping while the RE Manager runs (`caffeinate`; closing the lid
+still sleeps a laptop); elsewhere, disable sleep yourself. After a sleep the
+connection to the 2460 is gone and the run in progress fails. Stop it normally with `qserver manager stop`;
+`qserver/kill-re-manager.sh` instead kills it and its worker without cleanup,
+leaving a running sequence to finish on the 2460 alone (then archive in the
+morning, step 6).
+
+Terminal 2, for everything else:
+
+```sh
+qserver environment open
+qserver status            # wait for: worker_environment_exists True, manager_state idle
+```
+
+Opening the environment connects to the 2460, sets HIGH-Z for both source
+functions, reads it back and disconnects. If it fails, terminal 1 shows why:
+**do not connect a cell**.
+
+## 3. Connect the cell
+
+Front terminals, four-wire, as named in the session file: the electrode whose
+potential the run sheet describes on HI (force and sense), the counter electrode
+on LO. Check the polarity: reversed leads make every step run the wrong way. A narrow
+session window catches this at the first reading.
+
+## 4. Queue and run
+
+```sh
+oe-enqueue runs.xlsx cell01-discharge cell01-chg-pulse --session ~/sessions/cell01.toml
+qserver queue get         # what is queued
+qserver queue start       # runs the queue in order
+```
+
+`oe-enqueue` validates the named rows against the session, checks that each
+fits the 2460's trigger model, prints a summary of each and adds them in order;
+if any row fails, nothing is queued. The
+`--session` file must be the one the RE Manager runs with. You can add rows
+while the queue runs.
+
+A row that ends on a voltage threshold (outcome `stopped_cutoff`) has finished
+normally, and the queue continues with the next row.
+
+### External start
+
+An `external` row arms the 2460, raises READY (line 1) and waits with the
+output OFF for a rising edge on START (line 6). The run then starts, and its
+time zero is logged within about 0.1 ms of that edge. If the session sets
+`start_timeout_s`, the run aborts when no START arrives in time.
+
+## 5. Watch
+
+- `qserver status`, `qserver history get`, and terminal 1.
+- The viewer notebook for the data ([Data and the viewer](data.md)). It only
+  reads files, so it can stay open and be restarted at any time without
+  affecting a run.
+
+## 6. Stop a run, recover
+
+- **Finish the current run, then stop the queue:** `qserver queue stop`.
+- **Stop the current run now:**
+
+  ```sh
+  qserver re pause immediate        # the 2460 aborts the run and turns the output OFF
+  qserver re abort                  # closes the run; the file keeps outcome "aborted"
+  qserver queue item remove front   # the aborted run is back at the front: remove it
+  qserver queue add plan front '{"name": "recover_sequencer"}'
+  qserver queue start               # recover, then the rest of the queue
+  ```
+
+- **After a failed run:** the QueueServer puts the failed item back at the
+  front and stops. Remove it, queue `recover_sequencer` at the front as above,
+  then start.
+- **After a laptop or RE Manager crash during a run:** the 2460 finishes the
+  run on its own and turns the output OFF. The next run then fails with "unread
+  records" until the readings left on the instrument are saved:
+
+  ```sh
+  qserver queue item remove front
+  qserver queue add plan front '{"name": "archive_retained"}'
+  qserver queue start               # saves retained-<UTC time>.npz in data_dir
+  ```
+
+  Without a running QueueServer, `oe-archive-retained --session S.toml` does the
+  same. The run's own file stays `incomplete`; the archive holds every reading
+  the 2460 kept. To get one file with the whole run:
+
+  ```sh
+  oe-recover-run ~/data/cell01-discharge_<stamp>.h5 ~/data/retained-<UTC>.npz
+  ```
+
+  It replays the archive through the run's own program and writes
+  `cell01-discharge-recovered_<stamp>.h5` beside it (both inputs untouched). It
+  refuses unless the archive's absolute instrument times match the file's (its
+  UTC time origin plus the measured clock offset) and the replay reproduces every
+  reading and event already in the file. So it also refuses a file that logged
+  an instrument error or an abort (the replay cannot produce those), and an
+  archive that does not start at record 1. The
+  outcome stays `incomplete` or `error`: the archive has no instrument log, so
+  the replay's prediction (completed or stopped at a cutoff) is only noted in
+  the outcome detail.
+- **After the network link dropped during a run** (cable out, switch, sleep):
+  the run fails on the laptop without anything reaching the 2460, which
+  finishes on its own. The 2460 may keep the dead connection and ignore new
+  ones: `k2460-diagnose` then reports `*IDN?` timing out although ping works.
+  Once the front panel shows the output OFF, close the dead connection through
+  the dead-socket port (Reference Manual p. 2-22; it closes every Ethernet
+  connection):
+
+  ```sh
+  nc -z -G 3 <instrument-ip> 5030
+  ```
+
+  Then `k2460-diagnose` and `oe-archive-retained` as above. Whether port 5030 is
+  safe while a run is still active is unverified: wait for output OFF.
+- **Never repeat a run whose state is unclear.** First check that the output is
+  OFF (front panel, or `k2460-diagnose` once the QueueServer is stopped).
+
+## 7. Change session, end of day
+
+```sh
+qserver queue stop
+qserver environment close
+qserver manager stop
+```
+
+For another cell, wiring or window, start the RE Manager again with that
+session file (step 2). At the end of the day, disconnect the cell before
+switching the 2460 off. `redis-cli shutdown` stops redis.
+
+## Fallback: one notebook per run
+
+If the QueueServer is unavailable, `oe-new-run` makes a notebook for one row
+with the limits you pass (see the [Quickstart](quickstart.md#without-the-queueserver)).
+Set `BACKEND = "k2460"` and the instrument settings in its settings cell, which
+serves as that run's session. Do not run it while a QueueServer environment is
+open.

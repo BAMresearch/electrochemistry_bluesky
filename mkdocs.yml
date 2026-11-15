@@ -1,0 +1,17 @@
+site_name: electrochemistry-bluesky
+theme: readthedocs
+nav:
+  - Home: index.md
+  - User guide:
+      - Overview: user/index.md
+      - Quickstart: user/quickstart.md
+      - Run sheets: user/run-sheets.md
+      - Sessions: user/sessions.md
+      - At the instrument: user/operation.md
+      - Data and the viewer: user/data.md
+      - Command reference: user/reference.md
+  - Technical documentation:
+      - Overview: technical/index.md
+      - Simulator and fakes: technical/simulator.md
+      - Testing: technical/testing.md
+      - Development: technical/development.md
