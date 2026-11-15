@@ -1,5 +1,7 @@
 # electrochemistry-bluesky
 
+[![CI](https://github.com/BAMresearch/electrochemistry_bluesky/actions/workflows/ci.yml/badge.svg)](https://github.com/BAMresearch/electrochemistry_bluesky/actions/workflows/ci.yml)
+
 Bluesky control of battery experiments on a Keithley 2460 SourceMeter:
 galvanostatic and potentiostatic cycling, state-of-charge positioning, and
 current pulses with rests. The instrument runs each sequence on its own

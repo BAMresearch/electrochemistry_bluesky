@@ -21,6 +21,9 @@ from electrochemistry_bluesky.run_sheet import make_template, write_run_sheet  #
 
 QSERVER = Path(__file__).parents[2] / "qserver"
 REDIS = shutil.which("redis-server")
+if REDIS is None and os.environ.get("OE_REQUIRE_REDIS") == "1":
+    # CI sets this, so a missing redis fails instead of skipping the RE Manager tests.
+    pytest.fail("OE_REQUIRE_REDIS=1 but redis-server is not installed", pytrace=False)
 pytestmark = [
     pytest.mark.queueserver,
     pytest.mark.skipif(REDIS is None, reason="redis-server not installed"),

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --group dev --extra queueserver
+      - run: uv run --locked --no-sync ruff check .
+      - run: uv run --locked --no-sync ruff format --check .
+      - run: uv run --locked --no-sync mypy src
+      - run: uv run --locked --no-sync mkdocs build --strict
+
+  test:
+    # No test touches an instrument. The RE Manager contract tests need redis;
+    # OE_REQUIRE_REDIS makes a missing redis fail instead of skipping them.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python: "3.14"
+    runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+      OE_REQUIRE_REDIS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install redis
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install redis
+          else
+            sudo apt-get update && sudo apt-get install -y redis-server
+          fi
+      - run: uv sync --locked --group test --extra queueserver
+      - run: uv run --locked --no-sync pytest
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - name: Distributions hold the templates and nothing unexpected
+        run: |
+          unzip -Z1 dist/*.whl > wheel.txt
+          tar tzf dist/*.tar.gz | sed 's|^[^/]*/||' > sdist.txt
+          for f in electrochemistry_bluesky/templates/run.ipynb \
+                   electrochemistry_bluesky/templates/view.ipynb \
+                   electrochemistry_bluesky/py.typed; do
+            grep -qx "$f" wheel.txt || { echo "wheel lacks $f"; exit 1; }
+          done
+          if grep -E '^(tests|docs|qserver)/' wheel.txt; then echo "wheel holds repo files"; exit 1; fi
+          if grep -E '(^|/)\.(venv|git)/|\.(npz|xlsx)$' sdist.txt; then echo "unexpected sdist files"; exit 1; fi
+      - name: The wheel runs from outside the source tree
+        run: |
+          # keithley2460-ophyd is not on PyPI yet: install the tag this project pins.
+          tag=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['tool']['uv']['sources']['keithley2460-ophyd']['tag'])")
+          uv venv --python 3.14 "$RUNNER_TEMP/wheel"
+          uv pip install --python "$RUNNER_TEMP/wheel" \
+            "keithley2460-ophyd @ git+https://github.com/BAMresearch/keithley2460_ophyd@$tag" \
+            dist/*.whl
+          cp qserver/session-simulator.toml "$RUNNER_TEMP/session.toml"
+          cd "$RUNNER_TEMP"
+          sed -i "s|^data_dir = .*|data_dir = \"$RUNNER_TEMP/data\"|" session.toml
+          wheel/bin/oe-template runs.xlsx
+          wheel/bin/oe-validate runs.xlsx --session session.toml
+          wheel/bin/oe-new-viewer data
+          test -f data/viewer.ipynb

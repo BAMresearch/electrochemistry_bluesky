@@ -8,7 +8,8 @@ uv run --locked mypy src
 ```
 
 No test touches an instrument. Tests marked `queueserver` start `redis-server`
-and an RE Manager and are skipped if redis is not installed. The device package
+and an RE Manager and are skipped if redis is not installed, unless
+`OE_REQUIRE_REDIS=1` is set (as in CI), which makes a missing redis an error. The device package
 is installed as a built distribution (not from its source tree), so the tests
 also check that this package uses only its public, installed interface.
 

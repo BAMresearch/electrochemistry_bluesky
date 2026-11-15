@@ -13,6 +13,13 @@ uv sync --locked --group dev --extra queueserver
 | Strict docs build | `uv run --locked mkdocs build --strict` |
 | Distributions | `uv build` |
 
+CI (`.github/workflows/ci.yml`) runs on every push and pull request: lint,
+types and the strict docs build; the tests on Python 3.11–3.14 (Linux) and 3.14
+(macOS), with redis installed and required (`OE_REQUIRE_REDIS=1`), so the RE
+Manager tests run instead of skipping; and a build whose wheel must hold the
+notebook templates and run `oe-template`, `oe-validate` and `oe-new-viewer`
+from outside the source tree.
+
 The development Python is 3.14 (`.python-version`); the package declares 3.11
 or later. After changing dependencies run `uv lock` and commit `pyproject.toml`
 and `uv.lock` together.
