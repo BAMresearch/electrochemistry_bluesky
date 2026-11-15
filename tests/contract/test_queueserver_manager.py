@@ -121,12 +121,32 @@ def manager(tmp_path, request):
             redis.terminate()
             redis.wait(timeout=10)
             log.close()
-        assert not group_alive(process.pid), "RE Manager processes survived the test"
+        survivors = group_members(process.pid)
+        assert not survivors, f"RE Manager processes survived the test: {survivors}"
+
+
+def group_members(pgid):
+    """Live (non-zombie) processes of a process group, as ``pid state command`` lines."""
+    if sys.platform.startswith("linux"):
+        # An exited child that init has not reaped yet stays a zombie (state Z) in
+        # the group, holding nothing; CI runners reap such orphans late.
+        members = []
+        for stat in Path("/proc").glob("[0-9]*/stat"):
+            try:
+                comm_end = (text := stat.read_text()).rindex(")")
+            except (OSError, ValueError):
+                continue
+            state, _, group = text[comm_end + 2 :].split()[:3]
+            if int(group) == pgid and state != "Z":
+                members.append(f"{stat.parent.name} {state} {text[: comm_end + 1]}")
+        return members
+    # pgrep, not killpg(pgid, 0): macOS answers EPERM for a group of exited processes.
+    result = subprocess.run(["pgrep", "-l", "-g", str(pgid)], capture_output=True, text=True)
+    return result.stdout.splitlines() if result.returncode == 0 else []
 
 
 def group_alive(pgid):
-    # pgrep, not killpg(pgid, 0): macOS answers EPERM for a group of exited processes.
-    return subprocess.run(["pgrep", "-g", str(pgid)], capture_output=True).returncode == 0
+    return bool(group_members(pgid))
 
 
 def stop_group(pgid):
