@@ -11,9 +11,15 @@ A session's ``[tiled]`` table chooses one of two stores:
   environment variable holding its API key, which never goes in the session
   file (that file's text is stored in every run file).
 
-Writing never affects a run. ``TiledWriter`` sends a run whose Tiled write fails
-to JSON-lines files in ``<data_dir>/tiled/backup`` instead (the whole run, for
-replay), and any other error is logged and dropped. Needs the ``tiled`` extra.
+Writing never waits for or fails a run: the RunEngine only hands each document
+to a bounded queue, and a background thread writes it to Tiled. ``TiledWriter``
+sends a run whose Tiled write fails to JSON-lines files in
+``<data_dir>/tiled/backup`` instead (the whole run, for replay). If the queue
+fills (a slow or stalled server), or documents are still queued when the store
+closes, the rest of that run goes to ``backup/<uid>-overflow.jsonl``. Other
+errors are logged and dropped. A hard-killed process loses what was still
+queued or buffered (``TiledWriter`` writes rows in batches); the HDF5 run file
+stays complete. Needs the ``tiled`` extra.
 """
 
 import argparse
@@ -23,10 +29,13 @@ import logging
 import math
 import multiprocessing.util
 import os
+import queue
+import re
 import secrets
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -40,6 +49,11 @@ logger = logging.getLogger(__name__)
 
 _KEYS = {"local", "uri", "api_key_env", "timeout_s"}
 STORE_DIRECTORY = "tiled"
+# Rows per table write: a hard-killed process loses at most this many (6 s at 6 ms).
+BATCH_ROWS = 1000
+# Documents waiting for the writer thread (an event page per poll, ~1 s of data).
+MAX_PENDING = 1000
+_KEY_IN_LOG = re.compile(r"(api_key=)[^\s&\"']+")
 
 
 def check_tiled(table: Mapping[str, object] | None) -> dict[str, Any]:
@@ -92,6 +106,7 @@ class LocalTiledServer:
         self._process: subprocess.Popen[bytes] | None = None
         self._lock: IO[str] | None = None
         self._log: IO[bytes] | None = None
+        self._owns_files = False  # server.json and api-key were written by this instance
 
     def _acquire_lock(self) -> None:
         self._lock = (self.directory / "server.lock").open("a")
@@ -104,9 +119,15 @@ class LocalTiledServer:
         except OSError as exc:
             self._lock.close()
             self._lock = None
+            try:
+                running = json.loads((self.directory / "server.json").read_text())
+                who = f" (pid {running['pid']}, {running['uri']})"
+            except (OSError, ValueError, KeyError):
+                who = ""
             raise ValidationError(
-                f"another Tiled server already serves {self.directory}; "
-                "use one session per data folder"
+                f"another Tiled server already serves {self.directory}{who}; "
+                "use one session per data folder. A server whose session was killed "
+                "stops within seconds; if it does not, stop that pid."
             ) from exc
 
     def start(self) -> None:
@@ -126,7 +147,8 @@ class LocalTiledServer:
         args = [
             sys.executable,
             "-m",
-            "tiled",
+            "electrochemistry_bluesky._tiled_server",
+            str(os.getpid()),  # the server stops when this process is gone
             "serve",
             "catalog",
             str(catalog),
@@ -141,8 +163,9 @@ class LocalTiledServer:
         ]
         if not catalog.exists():
             args.append("--init")
-        self._log = (self.directory / "server.log").open("ab")
-        # The key goes through the environment, not the command line (ps shows that).
+        self._log = _private_log(self.directory / "server.log")
+        # The key goes through the environment, not the command line (ps shows that);
+        # the wrapper redacts it from the server's output.
         env = {**os.environ, "TILED_SINGLE_USER_API_KEY": self.api_key}
         # The server inherits the lock: if this process dies first, the lock is held
         # until the server is gone too, so no second server opens the same catalog.
@@ -176,6 +199,7 @@ class LocalTiledServer:
         self.uri = uri
         key_file = self.directory / "api-key"
         key_file.unlink(missing_ok=True)
+        self._owns_files = True
         descriptor = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "w") as stream:
             stream.write(self.api_key + "\n")
@@ -192,8 +216,10 @@ class LocalTiledServer:
                 self._process.kill()
                 self._process.wait(timeout=10)
         self._process = None
-        for name in ("server.json", "api-key"):
-            (self.directory / name).unlink(missing_ok=True)
+        if self._owns_files:  # never remove the files of a server another process runs
+            for name in ("server.json", "api-key"):
+                (self.directory / name).unlink(missing_ok=True)
+            self._owns_files = False
         for stream in (self._log, self._lock):
             if stream is not None:
                 stream.close()  # closing the lock file releases the lock
@@ -201,18 +227,128 @@ class LocalTiledServer:
 
 
 class SafeTiledWriter:
-    """A ``TiledWriter`` whose failures never reach the RunEngine."""
+    """Hands documents to a writer thread: Tiled never blocks or fails the RunEngine.
 
-    def __init__(self, writer: Any) -> None:
+    Documents wait in a queue of at most ``max_pending``. When it is full, the
+    rest of that run is appended to ``<backup>/<uid>-overflow.jsonl`` instead; so
+    are documents still queued when ``close`` gives up waiting. Each line is
+    ``[number, name, document]``, numbered in RunEngine order: sort by the number
+    to replay; Tiled holds the documents numbered before the file's first.
+    """
+
+    def __init__(
+        self,
+        writer: Any,
+        *,
+        backup_directory: str | Path | None = None,
+        max_pending: int = MAX_PENDING,
+    ) -> None:
         self._writer = writer
+        self._backup = Path(backup_directory) if backup_directory is not None else None
+        self._queue: queue.Queue[tuple[int, str, str, Mapping[str, Any]] | None] = queue.Queue(
+            max_pending
+        )
+        self._run_uid = ""
+        self._number = 0
+        self._spilling: set[str] = set()
+        self._closed = False
         self.errors = 0
+        self.spilled = 0
+        self._thread = threading.Thread(target=self._work, name="tiled-writer", daemon=True)
+        self._thread.start()
 
     def __call__(self, name: str, doc: Mapping[str, Any]) -> None:
         try:
-            self._writer(name, doc)
+            if name == "start":
+                self._run_uid, self._number = str(doc["uid"]), 0
+            uid, number = self._run_uid, self._number
+            self._number += 1
+            if self._closed or uid in self._spilling:
+                self._spill(number, uid, name, doc)
+                return
+            try:
+                self._queue.put_nowait((number, uid, name, doc))
+            except queue.Full:
+                self._spilling.add(uid)
+                logger.error(
+                    "Tiled is %d documents behind; the rest of run %s goes to the backup "
+                    "folder; the run continues",
+                    self._queue.maxsize,
+                    uid,
+                )
+                self._spill(number, uid, name, doc)
         except Exception:
             self.errors += 1
             logger.exception("Tiled copy failed on a %r document; the run continues", name)
+
+    def _work(self) -> None:
+        while (item := self._queue.get()) is not None:
+            _, _, name, doc = item
+            try:
+                self._writer(name, doc)
+            except Exception:
+                self.errors += 1
+                logger.exception("Tiled copy failed on a %r document; the run continues", name)
+            finally:
+                self._queue.task_done()
+        self._queue.task_done()
+
+    def _spill(self, number: int, uid: str, name: str, doc: Mapping[str, Any]) -> None:
+        self.spilled += 1
+        if self._backup is None:
+            return
+        self._backup.mkdir(parents=True, exist_ok=True)
+        with (self._backup / f"{uid or 'unknown'}-overflow.jsonl").open("a") as stream:
+            stream.write(json.dumps([number, name, doc], default=_plain) + "\n")
+
+    def flush(self, timeout_s: float) -> bool:
+        """Wait until every queued document is written; False on timeout."""
+        deadline = time.monotonic() + timeout_s
+        while self._queue.unfinished_tasks:
+            if time.monotonic() > deadline:
+                return False
+            time.sleep(0.05)
+        return True
+
+    def close(self, timeout_s: float = 20.0) -> None:
+        """Write what is queued (spilling the rest after ``timeout_s``), then stop."""
+        if self._closed:
+            return
+        self._closed = True
+        if not self.flush(timeout_s):
+            while True:
+                try:
+                    item = self._queue.get_nowait()
+                except queue.Empty:
+                    break
+                if item is not None:
+                    self._spill(*item)
+                self._queue.task_done()
+            logger.error("Tiled did not take every document in time; the rest is in backup")
+        try:
+            self._queue.put_nowait(None)
+        except queue.Full:  # the thread is stuck in a write; it is a daemon thread
+            pass
+        self._thread.join(timeout=1.0)
+
+
+def _plain(value: Any) -> Any:
+    """JSON for numpy values in documents."""
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    return str(value)
+
+
+def _private_log(path: Path) -> IO[bytes]:
+    """Open the server log 0600 for appending; redact keys an older log holds."""
+    if path.exists():
+        os.chmod(path, 0o600)
+        text = path.read_text(errors="replace")
+        redacted = _KEY_IN_LOG.sub(r"\1<api-key>", text)
+        if redacted != text:
+            path.write_text(redacted)
+    descriptor = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    return os.fdopen(descriptor, "ab")
 
 
 class TiledStore:
@@ -222,6 +358,7 @@ class TiledStore:
         self.callback, self.client, self.server = callback, client, server
 
     def close(self) -> None:
+        self.callback.close()
         if self.server is not None:
             self.server.stop()
             self.server = None
@@ -258,12 +395,16 @@ def open_tiled_store(tiled: Mapping[str, Any], data_dir: str | Path) -> TiledSto
                 raise ValidationError(f"tiled: environment variable {key_env} is not set")
     try:
         client = from_uri(uri, api_key=api_key, timeout=settings["timeout_s"])
-        writer = TiledWriter(client, backup_directory=str(store_dir / "backup"))
+        writer = TiledWriter(
+            client, backup_directory=str(store_dir / "backup"), batch_size=BATCH_ROWS
+        )
     except Exception as exc:
         if server is not None:
             server.stop()
         raise ValidationError(f"cannot open the Tiled store at {uri}: {exc}") from exc
-    store = TiledStore(SafeTiledWriter(writer), client, server)
+    store = TiledStore(
+        SafeTiledWriter(writer, backup_directory=store_dir / "backup"), client, server
+    )
     if server is not None:
         # Stop the server when this process ends: atexit for a plain process;
         # multiprocessing's finalizers for a worker Process (the RE Manager's),
