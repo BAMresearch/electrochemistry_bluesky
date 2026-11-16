@@ -10,6 +10,9 @@ resource = "TCPIP0::<instrument-ip>::5025::SOCKET"
 serial = "<instrument-serial-number>"
 terminals = "front"
 poll_period_s = 1.0
+# Optional set-up names in every run (docs/user/sessions.md, "Set-up names"):
+# facility = "<facility>"
+# station = "<set-up name>"  # default "k2460-<serial>"
 # start_timeout_s = 600.0  # external START: abort if none arrives in time
 
 [limits]  # PLACEHOLDERS: set from the connected cell's voltage window and current

@@ -397,3 +397,32 @@ def test_a_worker_that_reads_the_row_differently_refuses_it(tmp_path):
     with pytest.raises(ValidationError, match="different sequence than when it was enqueued"):
         namespace["RE"](namespace["run_from_sheet"](**kwargs))
     assert namespace["run_file_writer"].path is None  # refused before any run opened
+
+
+def test_every_run_names_the_set_up_that_made_it(tmp_path, session, sheet):
+    from electrochemistry_bluesky.queueserver import INSTRUMENT, run_metadata, session_metadata
+
+    md = run_metadata(session)
+    assert md["instrument"] == INSTRUMENT == "electrochemistry-k2460"
+    assert md["station"] == "simulator" and "facility" not in md
+    assert md["session"] == session_metadata(session)
+    assert run_metadata(hardware(session))["station"] == "k2460-01234567"
+    path = tmp_path / "named.toml"
+    example = (QSERVER / "session-simulator.toml").read_text()
+    path.write_text(f'facility = "BAM"\nstation = "glovebox-1"\n{example}')
+    named = Session(**{**vars(load_session(path)), "data_dir": tmp_path / "data"})
+    assert {k: run_metadata(named)[k] for k in ("facility", "instrument", "station")} == {
+        "facility": "BAM",
+        "instrument": INSTRUMENT,
+        "station": "glovebox-1",
+    }
+    assert session_metadata(named)["settings"]["station"] == "glovebox-1"
+    with pytest.raises(ValidationError, match="station"):
+        Session(**{**vars(session), "station": " "})
+    # The RunStart of a queued run carries them, and the x axis for generic viewers.
+    namespace = build_namespace(named, backend=SimulatedSequenceBackend(speed=math.inf))
+    starts = []
+    namespace["RE"].subscribe(lambda name, doc: starts.append(doc) if name == "start" else None)
+    namespace["RE"](namespace["run_from_sheet"](**enqueued(named, sheet, "example-rest")))
+    assert starts[0]["facility"] == "BAM" and starts[0]["station"] == "glovebox-1"
+    assert starts[0]["hints"] == {"dimensions": [[["t_s"], "readout"]]}

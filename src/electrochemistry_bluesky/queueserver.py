@@ -42,6 +42,8 @@ from .simulator import SimulatedSequenceBackend
 from .tiled_store import check_tiled, open_tiled_store
 
 PLAN_NAME = "run_from_sheet"
+# The RunStart "instrument" of every run unless the session names another.
+INSTRUMENT = "electrochemistry-k2460"
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,12 @@ class Session:
     start_timeout_s: float | None = None
     poll_period_s: float = 1.0
     sim_speed: float = 1.0
+    # Which set-up made the runs: RunStart keys facility, instrument and station,
+    # for catalogs and timelines that group runs by set-up. station defaults to
+    # "k2460-<serial>" (or "simulator"); facility is left out unless set.
+    facility: str | None = None
+    instrument: str = INSTRUMENT
+    station: str | None = None
     # The optional [sample] table: descriptive only, written to each run file's
     # /entry/sample; nothing in a run reads it.
     sample: Mapping[str, Any] = field(default_factory=dict)
@@ -83,6 +91,11 @@ class Session:
         if self.start_timeout_s is not None:
             positive(self.start_timeout_s, "start_timeout_s")
         positive(self.poll_period_s, "poll_period_s")
+        if self.facility is not None:
+            text(self.facility, "facility")
+        text(self.instrument, "instrument")
+        if self.station is not None:
+            text(self.station, "station")
         if not isinstance(self.limits, SafetyLimits):
             raise ValidationError("limits must be SafetyLimits")
         object.__setattr__(self, "sample", check_sample(dict(self.sample)))
@@ -92,6 +105,13 @@ class Session:
     @property
     def hardware(self) -> bool:
         return self.backend != "simulator"
+
+    @property
+    def station_name(self) -> str:
+        """``station``, or else ``"k2460-<serial>"`` (``"simulator"``)."""
+        if self.station is not None:
+            return self.station
+        return f"k2460-{self.serial}" if self.hardware else "simulator"
 
 
 _SOURCE_FIELDS = {"source_path", "source_text", "source_sha256"}
@@ -149,6 +169,9 @@ def session_metadata(session: Session) -> dict[str, Any]:
             "resource": session.resource,
             "serial": session.serial,
             "terminals": session.terminals,
+            "facility": session.facility,
+            "instrument": session.instrument,
+            "station": session.station_name,
             "start_timeout_s": session.start_timeout_s,
             "poll_period_s": session.poll_period_s,
             # inf (no waiting) is not JSON: kept as text
@@ -161,6 +184,16 @@ def session_metadata(session: Session) -> dict[str, Any]:
         },
         "sample": dict(session.sample),
     }
+
+
+def run_metadata(session: Session) -> dict[str, Any]:
+    """RunStart metadata from the session: the set-up that made the run (facility,
+    instrument, station) and the session itself (``session_metadata``)."""
+    md: dict[str, Any] = {"instrument": session.instrument, "station": session.station_name}
+    if session.facility is not None:
+        md["facility"] = session.facility
+    md["session"] = session_metadata(session)
+    return md
 
 
 def sheet_digest(path: str | Path) -> str:
@@ -251,8 +284,8 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
             "run_sheet": str(run_sheet),
             "sheet_sha256": sheet_sha256,
             "sequence_sha256": sequence_sha256,
-            # In the RunStart, so every copy of the run (HDF5, Tiled) carries it.
-            "session": session_metadata(session),
+            # In the RunStart, so every copy of the run (HDF5, Tiled) carries them.
+            **run_metadata(session),
         }
         return (yield from run_sequence(flyer, request, md=md))
 

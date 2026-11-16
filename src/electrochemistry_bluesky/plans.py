@@ -43,6 +43,8 @@ def run_sequence(
         "expected_records": expected_records(request.sequence),
         "nominal_duration_s": nominal_duration_s(request.sequence),
         "plan_name": "run_sequence",
+        # For generic viewers: plot the readout against its time since start.
+        "hints": {"dimensions": [[["t_s"], "readout"]]},
     }
     collisions = metadata.keys() & (md or {}).keys()
     if collisions:
