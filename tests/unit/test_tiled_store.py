@@ -106,10 +106,10 @@ def test_runs_are_kept_in_a_persistent_local_store_beside_the_run_files(session)
         assert run.metadata["start"]["measurement_id"] == "example-pulse-train"
         assert run.metadata["start"]["run_sheet_row"]["protocol"] == "pulse_train"
         assert run.metadata["stop"]["exit_status"] == "success"
-        readout = run["streams"]["readout"].read()
+        readout = run["readout"].read()
         np.testing.assert_allclose(np.asarray(readout["t_s"]), saved["readout"]["t_s"])
         np.testing.assert_allclose(np.asarray(readout["voltage_v"]), saved["readout"]["voltage_v"])
-        assert "sequence_events" in run["streams"]
+        assert "sequence_events" in run
     finally:
         reopened.close()
     assert reopened.callback.errors == 0

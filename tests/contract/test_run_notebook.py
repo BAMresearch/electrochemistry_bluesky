@@ -160,6 +160,6 @@ def test_the_notebook_keeps_a_tiled_copy_and_stops_its_server(monkeypatch, tmp_p
     reopened = open_tiled_store({"local": True}, tmp_path / "data")
     try:
         run = reopened.client[saved["provenance"]["bluesky_uid"]]
-        assert len(run["streams"]["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
+        assert len(run["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
     finally:
         reopened.close()

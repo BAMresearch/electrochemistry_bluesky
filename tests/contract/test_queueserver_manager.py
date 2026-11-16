@@ -280,6 +280,6 @@ def test_the_worker_keeps_a_local_tiled_store_and_stops_its_server(manager, tmp_
     try:
         run = reopened.client[saved["provenance"]["bluesky_uid"]]
         assert run.metadata["start"]["measurement_id"] == "example-rest"
-        assert len(run["streams"]["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
+        assert len(run["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
     finally:
         reopened.close()

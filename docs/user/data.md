@@ -68,7 +68,7 @@ from tiled.client import from_uri
 
 runs = from_uri(uri, api_key=key)  # both printed by oe-tiled
 run = runs[uid]
-run.metadata["start"]["measurement_id"], run["streams"]["readout"].read()
+run.metadata["start"]["measurement_id"], run["readout"].read()
 ```
 
 ## The viewer notebook
