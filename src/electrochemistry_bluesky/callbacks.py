@@ -43,6 +43,7 @@ _START_KEYS = {
     "versions",
     "run_sheet",
     "sheet_sha256",
+    "session",
 }
 
 
@@ -101,10 +102,11 @@ class _SequenceCallback(CallbackBase):
 class RunFileWriter(_SequenceCallback):
     """Incrementally persist all readout pages; errors propagate to the RunEngine.
 
-    ``session`` is what each file stores about the environment
-    (``queueserver.session_metadata``). The RunStart uid, scan_id and time, the
-    run sheet (``run_sheet``/``sheet_sha256`` metadata), host and software versions
-    go to ``/entry/provenance``; other RunStart metadata to ``/entry/run/extra``.
+    Each file stores the environment (``queueserver.session_metadata``) from the
+    RunStart's ``session`` key, or else the ``session`` given here. The RunStart
+    uid, scan_id and time, the run sheet (``run_sheet``/``sheet_sha256``
+    metadata), host and software versions go to ``/entry/provenance``; other
+    RunStart metadata to ``/entry/run/extra``.
     """
 
     def __init__(
@@ -149,7 +151,7 @@ class RunFileWriter(_SequenceCallback):
                 notes=metadata.get("notes"),
                 run_sheet_row=metadata["run_sheet_row"],
                 extra={k: _jsonable(v) for k, v in metadata.items() if k not in _START_KEYS},
-                session=self.session,
+                session=metadata.get("session") or self.session,
                 provenance=_provenance(metadata),
             )
         except BaseException:

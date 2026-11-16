@@ -220,7 +220,7 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
     if that cannot be confirmed: operators connect cells only after this.
     """
     engine = RunEngine({})
-    writer = RunFileWriter(session.data_dir, session=session_metadata(session))
+    writer = RunFileWriter(session.data_dir)  # the session comes with each RunStart
     engine.subscribe(writer)
     # A Tiled store that cannot be opened stops the environment from opening.
     tiled = open_tiled_store(session.tiled, session.data_dir)
@@ -251,6 +251,8 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
             "run_sheet": str(run_sheet),
             "sheet_sha256": sheet_sha256,
             "sequence_sha256": sequence_sha256,
+            # In the RunStart, so every copy of the run (HDF5, Tiled) carries it.
+            "session": session_metadata(session),
         }
         return (yield from run_sequence(flyer, request, md=md))
 

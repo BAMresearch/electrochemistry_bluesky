@@ -130,7 +130,10 @@ this computer only), and closing it stops the server; the store persists in
 `data_dir/tiled` (catalog, tables and a log). While it runs,
 `data_dir/tiled/server.json` and `api-key` say how to connect. Later,
 `oe-tiled DATA_DIR` serves the store again for reading. One session per data
-folder: a second server on the same store is refused.
+folder: a second server on the same store is refused, and the message names
+the running server's process. The server stops with the process that started it,
+also when that process was killed; if a refusal persists, stop that process.
+The key never appears in `server.log` (mode 0600).
 
 To use an existing Tiled server instead, give its address and the name of the
 environment variable that holds the API key (never the key itself: the session
@@ -144,9 +147,10 @@ api_key_env = "TILED_API_KEY"
 ```
 
 If the store cannot be opened, the environment does not open (remove the
-`[tiled]` table to measure without it). During a run, Tiled can never stop or
-fail it: if writing fails, that run's documents go in full to
-`data_dir/tiled/backup` (JSON lines, for later replay) and the run continues.
+`[tiled]` table to measure without it). During a run, Tiled never delays,
+stops or fails it: documents are written by a background thread, and what
+cannot be written goes to `data_dir/tiled/backup` (JSON lines, for later
+replay). When the copy can be incomplete: [Data, Tiled store](data.md#tiled-store).
 
 ## What the limits do
 

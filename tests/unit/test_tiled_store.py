@@ -106,6 +106,12 @@ def test_runs_are_kept_in_a_persistent_local_store_beside_the_run_files(session)
         assert run.metadata["start"]["measurement_id"] == "example-pulse-train"
         assert run.metadata["start"]["run_sheet_row"]["protocol"] == "pulse_train"
         assert run.metadata["stop"]["exit_status"] == "success"
+        # The session (sample, directions, resolved settings) travels in the RunStart.
+        assert run.metadata["start"]["session"]["settings"]["tiled"] == {
+            "local": True,
+            "timeout_s": 10.0,
+        }
+        assert saved["session"]["settings"] == run.metadata["start"]["session"]["settings"]
         readout = run["readout"].read()
         np.testing.assert_allclose(np.asarray(readout["t_s"]), saved["readout"]["t_s"])
         np.testing.assert_allclose(np.asarray(readout["voltage_v"]), saved["readout"]["voltage_v"])
@@ -138,10 +144,10 @@ def test_a_dead_tiled_server_never_fails_a_run(session):
     assert namespace["RE"](namespace["run_from_sheet"](**kwargs)) is not None
     saved = read_run_file(namespace["run_file_writer"].path)
     assert saved["run"]["outcome"] == "completed"
+    store.close()  # writes what the writer thread still holds
     # The whole run went to the backup instead, for later replay.
     backups = list((session.data_dir / "tiled" / "backup").iterdir())
     assert backups and any(path.stat().st_size for path in backups)
-    store.close()
 
 
 def test_errors_outside_the_writer_are_logged_not_raised(caplog):
@@ -150,8 +156,10 @@ def test_errors_outside_the_writer_are_logged_not_raised(caplog):
 
     guarded = SafeTiledWriter(broken)
     guarded("start", {"uid": "x"})
+    assert guarded.flush(5)
     assert guarded.errors == 1
     assert "the run continues" in caplog.text
+    guarded.close()
 
 
 def test_an_existing_server_with_the_key_from_the_environment(tmp_path, monkeypatch):
@@ -237,3 +245,119 @@ def test_the_server_stops_when_a_worker_process_ends(tmp_path, method):
     server = LocalTiledServer(tmp_path / "tiled")  # the lock is free again
     server.start()
     server.stop()
+
+
+def test_a_stalled_writer_never_blocks_the_run(tmp_path):
+    import json
+    import threading
+    import time
+
+    release = threading.Event()
+    written = []
+
+    def stalled(name, doc):  # a server that does not answer
+        release.wait()
+        written.append(name)
+
+    guarded = SafeTiledWriter(stalled, backup_directory=tmp_path, max_pending=5)
+    started = time.monotonic()
+    guarded("start", {"uid": "run1"})
+    for i in range(20):
+        guarded("event_page", {"seq_num": [i]})
+    guarded("stop", {"exit_status": "success"})
+    assert time.monotonic() - started < 0.5  # the RunEngine never waited
+    guarded.close(timeout_s=0.2)
+    release.set()
+    lines = sorted(json.loads(line) for line in (tmp_path / "run1-overflow.jsonl").open())
+    # Tiled got (or will get) the first documents; the overflow file, sorted by
+    # number, has the rest of the run without a gap.
+    numbers = [line[0] for line in lines]
+    assert numbers == list(range(numbers[0], 22)) and numbers[0] <= 6
+    assert lines[-1] == [21, "stop", {"exit_status": "success"}]
+    assert guarded.spilled == len(lines)
+    assert guarded.errors == 0
+
+
+def test_the_api_key_never_reaches_the_server_log(tmp_path):
+    folder = tmp_path / "tiled"
+    folder.mkdir()
+    (folder / "server.log").write_text("old: http://127.0.0.1:1?api_key=0123abcd\n")
+    server = LocalTiledServer(folder)
+    server.start()
+    try:
+        log = folder / "server.log"
+        assert stat.S_IMODE(log.stat().st_mode) == 0o600
+        text = log.read_text()
+        assert server.api_key not in text and "0123abcd" not in text
+        assert "api_key=<api-key>" in text
+    finally:
+        server.stop()
+
+
+def test_a_refused_server_leaves_the_running_one_alone(tmp_path):
+    first = LocalTiledServer(tmp_path / "tiled")
+    first.start()
+    try:
+        second = LocalTiledServer(tmp_path / "tiled")
+        with pytest.raises(ValidationError, match=f"pid {first._process.pid}"):
+            second.start()
+        second.stop()
+        assert (tmp_path / "tiled" / "server.json").exists()
+        assert (tmp_path / "tiled" / "api-key").exists()
+    finally:
+        first.stop()
+
+
+def _run_until_killed(session_path):
+    from electrochemistry_bluesky import SimulatedSequenceBackend
+    from electrochemistry_bluesky.queueserver import build_namespace, load_session, queue_items
+    from electrochemistry_bluesky.run_sheet import make_template
+
+    session = load_session(session_path)
+    sheet = make_template(session.data_dir.parent / "runs.xlsx", overwrite=True)
+    namespace = build_namespace(session, backend=SimulatedSequenceBackend(speed=1.0))
+    kwargs = queue_items(session, sheet, ["example-rest"], show=lambda text: None)[0]["kwargs"]
+    namespace["RE"](namespace["run_from_sheet"](**kwargs))  # killed long before its end
+
+
+def test_a_killed_worker_takes_its_server_down_and_the_store_keeps_the_start(session, tmp_path):
+    import json
+    import multiprocessing
+    import os
+    import signal
+    import time
+
+    process = multiprocessing.get_context("spawn").Process(
+        target=_run_until_killed, args=(session.source_path,)
+    )
+    process.start()
+    try:
+        deadline = time.monotonic() + 120
+        while not list(session.data_dir.glob("example-rest_*.h5")):
+            assert time.monotonic() < deadline and process.is_alive()
+            time.sleep(0.2)
+        time.sleep(2)
+        server_pid = json.loads((session.data_dir / "tiled" / "server.json").read_text())["pid"]
+        os.kill(process.pid, signal.SIGKILL)  # as a killed RE Manager worker or kernel
+        process.join(10)
+        deadline = time.monotonic() + 30
+        while True:  # the server notices within seconds and stops
+            try:
+                os.kill(server_pid, 0)
+            except ProcessLookupError:
+                break
+            assert time.monotonic() < deadline, "the Tiled server outlived its worker"
+            time.sleep(0.2)
+    finally:
+        if process.is_alive():
+            process.kill()
+    # The store opens again; the interrupted run has its start and no stop.
+    (path,) = session.data_dir.glob("example-rest_*.h5")
+    saved = read_run_file(path)
+    store = open_tiled_store(session.tiled, session.data_dir)
+    try:
+        run = store.client[saved["provenance"]["bluesky_uid"]]
+        assert run.metadata["start"]["measurement_id"] == "example-rest"
+        assert not run.metadata.get("stop")
+    finally:
+        store.close()
