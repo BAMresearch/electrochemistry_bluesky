@@ -2,8 +2,6 @@
 
 <!-- version list -->
 
-## Unreleased
-
 Initial public release, extracted from an internal development repository and
 built on `keithley2460-ophyd`:
 
