@@ -38,6 +38,8 @@ serial = "<instrument-serial>" # refuses any other instrument
 terminals = "front"
 poll_period_s = 1.0            # how often the laptop reads new data
 # start_timeout_s = 600.0      # external START: abort if none arrives in time
+# facility = "<facility>"      # optional set-up names in every run (below)
+# station = "glovebox-1"       # default "k2460-<serial>"
 
 [limits]
 v_min_abs = -3.0               # absolute voltage window, V
@@ -60,10 +62,26 @@ electrolyte = "<electrolyte>"
 | `resource`, `serial` | The instrument's address and serial number; both required for `k2460`, and a run refuses any instrument with another serial |
 | `terminals` | `front` or `rear` |
 | `start_timeout_s` | Optional. An external-start run aborts if no START comes in time |
+| `facility`, `instrument`, `station` | Optional names of this set-up, in every run's start document (below) |
 | `[limits]` | The window, maximum current, and per-run duration and record bounds |
 | `[sample]` | Optional description of the cell (below) |
 | `[directions]` | Optional words for charge and discharge in the run sheet (below) |
 | `[tiled]` | Optional Tiled copy of every run's documents (below) |
+
+### Set-up names
+
+Every run's start document says which set-up made it, so catalogs and
+timelines (for example a Grafana timeline of a Tiled store) can group runs by
+set-up and show them with the right plots:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `instrument` | `"electrochemistry-k2460"` | The kind of set-up; keep the default unless a viewer is configured for another name |
+| `station` | `"k2460-<serial>"`, or `"simulator"` | Which set-up of that kind; name it (e.g. `"glovebox-1"`) when there are several |
+| `facility` | none (left out) | Your lab or facility, e.g. `"BAM"` |
+
+Plain text; keep the same values for every session of one set-up. The run
+files keep them with the session's resolved settings.
 
 ### The sample table
 
@@ -123,6 +141,7 @@ later. Install the `tiled` extra (`uv sync --locked --extra tiled …`), then:
 ```toml
 [tiled]
 local = true          # a store in data_dir/tiled, beside the run files
+# flush_s = 10.0      # write waiting rows at least this often, in seconds
 ```
 
 Opening the environment starts a Tiled server for the session (listening on
@@ -135,6 +154,28 @@ the running server's process. The server stops with the process that started it,
 also when that process was killed; if a refusal persists, stop that process.
 The key never appears in `server.log` (mode 0600).
 
+Rows waiting to be written go to the store at least every `flush_s` seconds
+(default 10), also in a slow run, so a live reader of the store (a notebook, a
+timeline that flags runs without new data) sees an open run's progress: with a
+responsive server, within about `flush_s` plus the poll period. Faster runs are
+written in batches of 1,000 rows. A slow server delays rows (by its queue and
+up to 45 s of retries per failed write), never the run.
+
+Readers can read while a run is written: the store keeps its tables in SQLite
+(`tables.sqlite`) with a write-ahead log. Keep `data_dir` on a local disk: the
+log does not work on network shares (if SQLite refuses it, the session does not
+open). To copy or
+back up a store, stop its server first (close the session or `oe-tiled`), then
+copy the whole `tiled` folder, including `tables.sqlite-wal` and `-shm` if
+present. A store made by an earlier version also has `tables.duckdb`; its runs
+stay readable, but parallel reads of those older runs can fail (DuckDB in
+Tiled 0.2.21 answers one request at a time).
+
+The local store has one API key, and it can write. Keep it to this computer's
+own notebooks: do not hand it to dashboards or other shared readers. For those,
+use a Tiled server with scoped (read-only) keys, with `uri` below; the session
+then writes there, and readers get their own keys from that server.
+
 To use an existing Tiled server instead, give its address and the name of the
 environment variable that holds the API key (never the key itself: the session
 file is stored in every run file):
@@ -144,6 +185,7 @@ file is stored in every run file):
 uri = "https://tiled.example.org"
 api_key_env = "TILED_API_KEY"
 # timeout_s = 10.0
+# flush_s = 10.0
 ```
 
 If the store cannot be opened, the environment does not open (remove the

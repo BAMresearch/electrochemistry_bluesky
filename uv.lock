@@ -1242,7 +1242,7 @@ requires-dist = [
     { name = "bluesky", specifier = ">=1.16,<1.17" },
     { name = "bluesky-queueserver", marker = "extra == 'queueserver'", specifier = ">=0.0.25,<0.1" },
     { name = "bluesky-queueserver-api", marker = "extra == 'queueserver'", specifier = ">=0.0.13,<0.1" },
-    { name = "bluesky-tiled-plugins", marker = "extra == 'tiled'", specifier = ">=2.0.13,<3" },
+    { name = "bluesky-tiled-plugins", marker = "extra == 'tiled'", specifier = "==2.0.13" },
     { name = "event-model", specifier = ">=1.23,<2" },
     { name = "h5py", specifier = ">=3.11,<4" },
     { name = "keithley2460-ophyd", specifier = ">=0.1.0,<0.2" },
@@ -1260,7 +1260,7 @@ provides-extras = ["visa", "queueserver", "tiled"]
 dev = [
     { name = "bluesky-queueserver", specifier = ">=0.0.25,<0.1" },
     { name = "bluesky-queueserver-api", specifier = ">=0.0.13,<0.1" },
-    { name = "bluesky-tiled-plugins", specifier = ">=2.0.13,<3" },
+    { name = "bluesky-tiled-plugins", specifier = "==2.0.13" },
     { name = "ipykernel", specifier = ">=6,<8" },
     { name = "keithley2460-ophyd", extras = ["testing"] },
     { name = "mkdocs", specifier = ">=1.6,<2" },
