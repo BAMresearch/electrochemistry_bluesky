@@ -50,7 +50,9 @@ def wait(condition, timeout, what):
 
 @pytest.fixture
 def manager(tmp_path, request):
-    speed = getattr(request, "param", "inf")  # simulator speed; 1.0 = real time
+    # Simulator speed ("1.0" = real time), or "tiled" for a local Tiled store at full speed.
+    param = getattr(request, "param", "inf")
+    speed, tiled = ("inf", "\n[tiled]\nlocal = true\n") if param == "tiled" else (param, "")
     redis_port, control, info = free_port(), free_port(), free_port()
     redis = subprocess.Popen(
         # Own --dir: redis loads dump.rdb from its working directory, and the
@@ -74,6 +76,7 @@ def manager(tmp_path, request):
         .read_text()
         .replace('"~/k2460-data/qserver-sim"', repr(str(tmp_path / "data")))
         .replace("sim_speed = 10.0", f"sim_speed = {speed}")
+        + tiled
     )
     log = (tmp_path / "manager.log").open("w")
     process = subprocess.Popen(
@@ -248,3 +251,35 @@ def test_pause_immediate_abort_recover_and_run_again(manager, tmp_path):
     ]
     rerun = [f for f in (tmp_path / "data").rglob("*.h5") if f != aborted]
     assert read_run_file(rerun[0])["run"]["outcome"] == "completed"
+
+
+@pytest.mark.parametrize("manager", ["tiled"], indirect=True)
+def test_the_worker_keeps_a_local_tiled_store_and_stops_its_server(manager, tmp_path):
+    pytest.importorskip("tiled")
+    from electrochemistry_bluesky.tiled_store import open_tiled_store
+
+    api, session, address = manager
+    api.environment_open()
+    api.wait_for_idle(timeout=120)
+    store = session.data_dir / "tiled"
+    assert (store / "server.json").exists()  # the worker started the server
+    sheet = make_template(tmp_path / "runs.xlsx")
+    enqueue(queue_items(session, sheet, ["example-rest"], show=lambda _: None), address, api=api)
+    api.queue_start()
+    api.wait_for_idle(timeout=120)
+    assert api.history_get()["items"][-1]["result"]["exit_status"] == "completed"
+    api.environment_close()
+    api.wait_for_idle(timeout=60)
+    # Closing the environment ends the worker, and with it the server.
+    deadline = time.monotonic() + 20
+    while (store / "server.json").exists() and time.monotonic() < deadline:
+        time.sleep(0.2)
+    assert not (store / "server.json").exists()
+    saved = read_run_file(next((session.data_dir).rglob("*.h5")))
+    reopened = open_tiled_store(session.tiled, session.data_dir)
+    try:
+        run = reopened.client[saved["provenance"]["bluesky_uid"]]
+        assert run.metadata["start"]["measurement_id"] == "example-rest"
+        assert len(run["streams"]["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
+    finally:
+        reopened.close()

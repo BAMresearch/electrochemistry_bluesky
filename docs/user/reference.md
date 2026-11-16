@@ -20,6 +20,7 @@ Run from the repository folder with its environment active
 | Put them back into the run's file | `oe-recover-run RUN.h5 retained-<UTC>.npz`: writes `<id>-recovered_<stamp>.h5` beside it. Refuses unless the archive's instrument times and readings match the file's (time origin plus clock offset), the archive holds the whole run, and the file has no events the replay cannot produce (instrument errors, aborts). The outcome stays as it was |
 | Status | `qserver status`, `qserver queue get`, `qserver history get` |
 | Viewer notebook for a data folder | `oe-new-viewer FOLDER` |
+| Serve a data folder's Tiled store (Ctrl-C stops) | `oe-tiled FOLDER` |
 | One notebook per run | `oe-new-run runs.xlsx ID FOLDER --v-min … --v-max … --i-max … --max-duration-s … --max-records … [--direction WORD=charge\|discharge …]` |
 | Shut down | `qserver environment close`, `qserver manager stop`, `redis-cli shutdown` |
 

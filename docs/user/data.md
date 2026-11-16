@@ -54,6 +54,23 @@ trip, typically under 1 ms on the direct cable) are stored as
 itself is only as good as its NTP. The MARKER pulse at each step start lets
 data from other instruments be aligned to the steps.
 
+## Tiled store
+
+With a `[tiled]` table in the session ([Sessions](sessions.md#tiled-store)),
+every run's documents are also kept in a Tiled store, under the run's Bluesky
+uid (`provenance/bluesky_uid` in the run file): the start document (sequence,
+limits, run-sheet row, equipment), the `readout` stream (every reading, as
+in the run file) and the `sequence_events` stream. Serve a data folder's store
+with `oe-tiled ~/k2460-data/cell01`, then:
+
+```python
+from tiled.client import from_uri
+
+runs = from_uri(uri, api_key=key)  # both printed by oe-tiled
+run = runs[uid]
+run.metadata["start"]["measurement_id"], run["streams"]["readout"].read()
+```
+
 ## The viewer notebook
 
 The viewer only reads run files. It never talks to the 2460 or the

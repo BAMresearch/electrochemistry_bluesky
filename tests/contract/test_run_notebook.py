@@ -28,6 +28,7 @@ def execute(
     namespace=None,
     output=None,
     stop_before=None,
+    tiled="{}",
 ):
     sheet = make_template(tmp_path / "runs.xlsx")
     data_dir = tmp_path / "data"
@@ -42,6 +43,7 @@ def execute(
         'DATA_DIR = Path.home() / "k2460-data"': f"DATA_DIR = Path({str(data_dir)!r})",
         "SIM_SPEED = 10.0": 'SIM_SPEED = float("inf")',
         'BACKEND = "simulator"': f"BACKEND = {backend!r}",
+        "TILED = {}": f"TILED = {tiled}",
         "VISA_RESOURCE = None": 'VISA_RESOURCE = "TCPIP0::192.0.2.1::5025::SOCKET"',
         "EXPECTED_SERIAL = None": 'EXPECTED_SERIAL = "01234567"',
         'MEASUREMENT_ID = "example-rest"': f"MEASUREMENT_ID = {measurement_id!r}",
@@ -144,3 +146,20 @@ def test_template_is_clean_and_has_one_settings_cell():
         if cell.cell_type == "code":
             assert not cell.outputs
             assert cell.execution_count is None
+
+
+def test_the_notebook_keeps_a_tiled_copy_and_stops_its_server(monkeypatch, tmp_path):
+    pytest.importorskip("tiled")
+    from electrochemistry_bluesky.tiled_store import open_tiled_store
+
+    namespace, _, _, _ = execute(monkeypatch, tmp_path, tiled='{"local": True}')
+    assert namespace["outcome"] == "completed"
+    store = tmp_path / "data" / "tiled"
+    assert not (store / "server.json").exists()  # the run cell stopped the server
+    saved = read_run_file(namespace["writer"].path)
+    reopened = open_tiled_store({"local": True}, tmp_path / "data")
+    try:
+        run = reopened.client[saved["provenance"]["bluesky_uid"]]
+        assert len(run["streams"]["readout"].read()["t_s"]) == len(saved["readout"]["t_s"])
+    finally:
+        reopened.close()

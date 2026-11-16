@@ -15,6 +15,7 @@ run is then validated against those limits, not confirmed again. Requires the
 """
 
 import argparse
+import atexit
 import hashlib
 import json
 import math
@@ -39,6 +40,7 @@ from .plans import run_sequence
 from .run_file_fields import check_sample
 from .run_sheet import RunRequest, check_directions, direction_notes, load_run_sheet
 from .simulator import SimulatedSequenceBackend
+from .tiled_store import check_tiled, open_tiled_store
 
 PLAN_NAME = "run_from_sheet"
 
@@ -62,6 +64,9 @@ class Session:
     # The optional [directions] table: this cell's words for charge and discharge
     # in the run sheet's start_with and cv_after columns.
     directions: Mapping[str, str] = field(default_factory=dict)
+    # The optional [tiled] table: a Tiled copy of every run's documents
+    # (local = true: a store in data_dir/tiled; or uri = an existing server).
+    tiled: Mapping[str, Any] = field(default_factory=dict)
     # The file as loaded (set by load_session), stored in each run file.
     source_path: Path | None = field(default=None, compare=False, repr=False)
     source_text: str | None = field(default=None, compare=False, repr=False)
@@ -83,6 +88,7 @@ class Session:
             raise ValidationError("limits must be SafetyLimits")
         object.__setattr__(self, "sample", check_sample(dict(self.sample)))
         object.__setattr__(self, "directions", check_directions(self.directions))
+        object.__setattr__(self, "tiled", check_tiled(self.tiled))
 
     @property
     def hardware(self) -> bool:
@@ -152,6 +158,7 @@ def session_metadata(session: Session) -> dict[str, Any]:
             else str(session.sim_speed),
             "limits": to_dict(session.limits),
             "directions": dict(session.directions),
+            "tiled": dict(session.tiled),
         },
         "sample": dict(session.sample),
     }
@@ -216,6 +223,11 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
     engine = RunEngine({})
     writer = RunFileWriter(session.data_dir, session=session_metadata(session))
     engine.subscribe(writer)
+    # A Tiled store that cannot be opened stops the environment from opening.
+    tiled = open_tiled_store(session.tiled, session.data_dir)
+    if tiled is not None:
+        atexit.register(tiled.close)  # the worker exits when the environment closes
+        engine.subscribe(tiled.callback)
     if backend is None:
         backend = make_backend(session)
     secure_off_mode = getattr(backend, "secure_off_mode", None)
@@ -260,6 +272,7 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
         "RE": engine,
         "session": session,
         "run_file_writer": writer,
+        "tiled_store": tiled,
         "k2460": flyer,
         PLAN_NAME: run_from_sheet,
         "recover_sequencer": recover_sequencer,

@@ -30,6 +30,8 @@ classifiers = [
 [project.optional-dependencies]
 visa = ["keithley2460-ophyd[visa]"]
 queueserver = ["bluesky-queueserver>=0.0.25,<0.1", "bluesky-queueserver-api>=0.0.13,<0.1"]
+# A Tiled copy of each run's documents (session [tiled] table).
+tiled = ["tiled[server,client]>=0.2.21,<0.3", "bluesky-tiled-plugins>=2.0.13,<3"]
 
 [project.urls]
 repository = "https://github.com/BAMresearch/electrochemistry_bluesky"
@@ -38,6 +40,7 @@ issues = "https://github.com/BAMresearch/electrochemistry_bluesky/issues"
 [project.scripts]
 oe-new-run = "electrochemistry_bluesky.notebook:main"
 oe-new-viewer = "electrochemistry_bluesky.notebook:view_main"
+oe-tiled = "electrochemistry_bluesky.tiled_store:serve_main"
 oe-template = "electrochemistry_bluesky.run_sheet:template_main"
 oe-archive-retained = "electrochemistry_bluesky.queueserver:archive_main"
 oe-recover-run = "electrochemistry_bluesky.recovery:main"
@@ -52,6 +55,8 @@ notebook = ["ipykernel>=6,<8"]
 dev = [
     "bluesky-queueserver>=0.0.25,<0.1",
     "bluesky-queueserver-api>=0.0.13,<0.1",
+    "tiled[server,client]>=0.2.21,<0.3",
+    "bluesky-tiled-plugins>=2.0.13,<3",
     {include-group = "test"},
     {include-group = "lint"},
     {include-group = "docs"},
@@ -99,3 +104,8 @@ strict = true
 [[tool.mypy.overrides]]
 module = ["bluesky.*", "ophyd.*"]
 follow_untyped_imports = true
+
+# Optional extra without type information; used through Any.
+[[tool.mypy.overrides]]
+module = ["tiled.*", "bluesky_tiled_plugins.*"]
+ignore_missing_imports = true

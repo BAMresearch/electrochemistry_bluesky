@@ -13,5 +13,7 @@ built on `keithley2460-ophyd`:
   `oe-archive-retained`), HDF5 run files (v2 layout; v1 still readable),
   live plot, viewer, `oe-recover-run`, notebooks (`oe-new-run`, `oe-new-viewer`).
 - Synthetic-cell simulator and `SimulatedSequenceBackend`.
+- Optional Tiled store (`tiled` extra, session `[tiled]` table): a local
+  persistent store in `data_dir/tiled` or an existing server; `oe-tiled`.
 - Run-sheet directions are `charge` and `discharge`; a session's optional
   `[directions]` table adds a lab's own words for them (e.g. `sodiation`).

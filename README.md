@@ -31,6 +31,8 @@ TSP runtime on the 2460  trigger model: timing, cutoffs, markers, output OFF
 - **Data.** One HDF5 file per run (NeXus-style, readable while it is written)
   with every reading, the events and the full settings; recovery of a run whose
   host crashed; a viewer notebook to follow and compare runs.
+- **Optional Tiled store** of every run's documents, either a local persistent
+  store beside the run files or an existing Tiled server.
 - **A simulator** with a synthetic cell, so the whole stack runs and is tested
   without hardware.
 

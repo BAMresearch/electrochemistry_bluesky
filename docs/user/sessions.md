@@ -63,6 +63,7 @@ electrolyte = "<electrolyte>"
 | `[limits]` | The window, maximum current, and per-run duration and record bounds |
 | `[sample]` | Optional description of the cell (below) |
 | `[directions]` | Optional words for charge and discharge in the run sheet (below) |
+| `[tiled]` | Optional Tiled copy of every run's documents (below) |
 
 ### The sample table
 
@@ -111,6 +112,41 @@ Manager's session reads the row differently (for example because its
 `[directions]` table differs from the session given to `oe-enqueue`), the run
 is refused before anything is prepared; enqueue it again with the right
 session.
+
+### Tiled store
+
+The run files are the record of each run. A session can also keep every run's
+Bluesky documents (metadata, readings and events) in a
+[Tiled](https://blueskyproject.io/tiled/) store, which makes them searchable
+later. Install the `tiled` extra (`uv sync --locked --extra tiled …`), then:
+
+```toml
+[tiled]
+local = true          # a store in data_dir/tiled, beside the run files
+```
+
+Opening the environment starts a Tiled server for the session (listening on
+this computer only), and closing it stops the server; the store persists in
+`data_dir/tiled` (catalog, tables and a log). While it runs,
+`data_dir/tiled/server.json` and `api-key` say how to connect. Later,
+`oe-tiled DATA_DIR` serves the store again for reading. One session per data
+folder: a second server on the same store is refused.
+
+To use an existing Tiled server instead, give its address and the name of the
+environment variable that holds the API key (never the key itself: the session
+file is stored in every run file):
+
+```toml
+[tiled]
+uri = "https://tiled.example.org"
+api_key_env = "TILED_API_KEY"
+# timeout_s = 10.0
+```
+
+If the store cannot be opened, the environment does not open (remove the
+`[tiled]` table to measure without it). During a run, Tiled can never stop or
+fail it: if writing fails, that run's documents go in full to
+`data_dir/tiled/backup` (JSON lines, for later replay) and the run continues.
 
 ## What the limits do
 

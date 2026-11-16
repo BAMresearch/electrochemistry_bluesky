@@ -54,6 +54,7 @@ Flyer with a synthetic cell.
 | **Run sheet** | `run_sheet.py` | Excel ⇄ `RunSpec` ⇄ `RunRequest` (the device `SequenceRequest` plus sample ID, notes and the row): each row through a builder, validated against the limits, all bad rows reported at once; the template with a README sheet | Hold limits or wiring |
 | **Recovery** | `recovery.py` | `oe-recover-run`: recompiles a lost run's program from its file (`SequencerProfile.from_settings`), replays its `archive_retained` npz through `Replayer`, checks the file's readings and events are reproduced, writes a new file with the rest and provenance; outcome unchanged | Touch the instrument; mark a run completed |
 | **Session and QueueServer** | `queueserver.py`, `qserver/` | `load_session` (TOML); `build_namespace` (RunEngine, writer, Flyer and the three plans; opening the environment secures HIGH-Z); `oe-validate`, `oe-enqueue`, `oe-archive-retained`; permissions allow only `run_from_sheet`, `recover_sequencer`, `archive_retained` | Per-run confirmation (the session is the confirmation) |
+| **Tiled store** | `tiled_store.py` | Optional session `[tiled]`: starts and stops a local server for `data_dir/tiled` (lock, generated API key) or connects to an existing one; `TiledWriter` with a backup folder, wrapped so no error reaches the RunEngine; `oe-tiled` | Hold the record (the run file does); fail a run |
 | **Notebooks** | `templates/run.ipynb`, `templates/view.ipynb`, `notebook.py` | Per-run notebook (fallback without QueueServer; `oe-new-run`); read-only viewer (`oe-new-viewer`) | – |
 
 ## Where settings live
@@ -61,7 +62,7 @@ Flyer with a synthetic cell.
 | Setting | Lives in | Set by |
 |---|---|---|
 | Protocol, levels, durations, thresholds, sampling, start mode, sample ID, notes | Run-sheet row | Operator, per run |
-| Backend, instrument address and serial, terminals, data folder, voltage window, current limit, run bounds, poll period, START timeout, direction words | Session TOML | Operator, per environment; loading it is the confirmation |
+| Backend, instrument address and serial, terminals, data folder, voltage window, current limit, run bounds, poll period, START timeout, direction words, Tiled store | Session TOML | Operator, per environment; loading it is the confirmation |
 | Digital lines, timing table (reading time per NPLC), ranges, compliance margin, block limit, `start_on_lowest_range` | `SequencerProfile` defaults in the device's `sequencer.py` | Developer, from measurements on the instrument |
 | Firmware facts (63 blocks, Lua 5.0, 900-character lines) | device: `sequencer.py`, `sequencer_runtime.py` | Measured on the instrument |
 

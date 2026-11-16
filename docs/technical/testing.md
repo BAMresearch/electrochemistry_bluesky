@@ -34,7 +34,8 @@ also check that this package uses only its public, installed interface.
 | Recovery from a retained archive | `test_recovery.py` |
 | Viewer helpers | `test_viewer.py` |
 | Session files, namespace, plans, enqueue, validate | `test_queueserver.py` |
-| Real RE Manager: queue of rows, cutoff continues the queue, abort, recover, archive | `tests/contract/test_queueserver_manager.py` |
+| Tiled store: settings, local server and lock, persistence, a dead server never failing a run, remote key handling, `oe-tiled` | `test_tiled_store.py` (skipped without the `tiled` extra) |
+| Real RE Manager: queue of rows, cutoff continues the queue, abort, recover, archive, a local Tiled store started and stopped by the worker | `tests/contract/test_queueserver_manager.py` |
 | Notebooks | `test_notebook_helpers.py`, `tests/contract/test_run_notebook.py`, `test_view_notebook.py` |
 
 Compiler golden layouts, the TSP runtime, the transport and the backend's
