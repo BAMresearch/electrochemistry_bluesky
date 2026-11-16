@@ -17,9 +17,11 @@ replay), and any other error is logged and dropped. Needs the ``tiled`` extra.
 """
 
 import argparse
+import atexit
 import json
 import logging
 import math
+import multiprocessing.util
 import os
 import secrets
 import socket
@@ -142,8 +144,16 @@ class LocalTiledServer:
         self._log = (self.directory / "server.log").open("ab")
         # The key goes through the environment, not the command line (ps shows that).
         env = {**os.environ, "TILED_SINGLE_USER_API_KEY": self.api_key}
+        # The server inherits the lock: if this process dies first, the lock is held
+        # until the server is gone too, so no second server opens the same catalog.
+        lock_fd = [self._lock.fileno()] if self._lock is not None else []
         self._process = subprocess.Popen(
-            args, stdout=self._log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env
+            args,
+            stdout=self._log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            pass_fds=lock_fd,
         )
         uri = f"http://127.0.0.1:{port}"
         deadline = time.monotonic() + self.startup_timeout_s
@@ -253,7 +263,14 @@ def open_tiled_store(tiled: Mapping[str, Any], data_dir: str | Path) -> TiledSto
         if server is not None:
             server.stop()
         raise ValidationError(f"cannot open the Tiled store at {uri}: {exc}") from exc
-    return TiledStore(SafeTiledWriter(writer), client, server)
+    store = TiledStore(SafeTiledWriter(writer), client, server)
+    if server is not None:
+        # Stop the server when this process ends: atexit for a plain process;
+        # multiprocessing's finalizers for a worker Process (the RE Manager's),
+        # which exits without running atexit handlers.
+        atexit.register(store.close)
+        multiprocessing.util.Finalize(store, store.close, exitpriority=10)
+    return store
 
 
 def serve_main(argv: list[str] | None = None) -> int:

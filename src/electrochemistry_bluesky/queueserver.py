@@ -15,7 +15,6 @@ run is then validated against those limits, not confirmed again. Requires the
 """
 
 import argparse
-import atexit
 import hashlib
 import json
 import math
@@ -226,8 +225,7 @@ def build_namespace(session: Session, *, backend: SequenceBackend | None = None)
     # A Tiled store that cannot be opened stops the environment from opening.
     tiled = open_tiled_store(session.tiled, session.data_dir)
     if tiled is not None:
-        atexit.register(tiled.close)  # the worker exits when the environment closes
-        engine.subscribe(tiled.callback)
+        engine.subscribe(tiled.callback)  # the store stops its server at worker exit
     if backend is None:
         backend = make_backend(session)
     secure_off_mode = getattr(backend, "secure_off_mode", None)

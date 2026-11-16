@@ -208,3 +208,32 @@ def test_oe_tiled_serves_a_store_until_interrupted(session, tmp_path):
         process.send_signal(signal.SIGINT)
         assert process.wait(timeout=30) == 0
     assert not (session.data_dir / "tiled" / "server.json").exists()
+
+
+def _open_local_store_and_return(data_dir):
+    from electrochemistry_bluesky.tiled_store import open_tiled_store
+
+    open_tiled_store({"local": True}, data_dir)  # closed only at process exit
+
+
+@pytest.mark.parametrize("method", ["fork", "spawn"])
+def test_the_server_stops_when_a_worker_process_ends(tmp_path, method):
+    import multiprocessing
+    import sys
+
+    if method not in multiprocessing.get_all_start_methods():
+        pytest.skip(f"no {method} start method here")
+    if method == "fork" and sys.platform == "darwin":
+        pytest.skip("fork after threads is unsafe on macOS (multiprocessing uses spawn there)")
+    # The RE Manager worker is a multiprocessing.Process; a forked one exits by
+    # os._exit, which skips atexit handlers.
+    process = multiprocessing.get_context(method).Process(
+        target=_open_local_store_and_return, args=(tmp_path,)
+    )
+    process.start()
+    process.join(timeout=120)
+    assert process.exitcode == 0
+    assert not (tmp_path / "tiled" / "server.json").exists()
+    server = LocalTiledServer(tmp_path / "tiled")  # the lock is free again
+    server.start()
+    server.stop()
