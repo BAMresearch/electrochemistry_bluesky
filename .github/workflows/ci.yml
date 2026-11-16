@@ -72,12 +72,8 @@ jobs:
           if grep -E '(^|/)\.(venv|git)/|\.(npz|xlsx)$' sdist.txt; then echo "unexpected sdist files"; exit 1; fi
       - name: The wheel runs from outside the source tree
         run: |
-          # keithley2460-ophyd is not on PyPI yet: install the tag this project pins.
-          tag=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['tool']['uv']['sources']['keithley2460-ophyd']['tag'])")
           uv venv --python 3.14 "$RUNNER_TEMP/wheel"
-          uv pip install --python "$RUNNER_TEMP/wheel" \
-            "keithley2460-ophyd @ git+https://github.com/BAMresearch/keithley2460_ophyd@$tag" \
-            dist/*.whl
+          uv pip install --python "$RUNNER_TEMP/wheel" dist/*.whl  # the device from PyPI
           cp qserver/session-simulator.toml "$RUNNER_TEMP/session.toml"
           cd "$RUNNER_TEMP"
           sed -i "s|^data_dir = .*|data_dir = \"$RUNNER_TEMP/data\"|" session.toml

@@ -1245,8 +1245,8 @@ requires-dist = [
     { name = "bluesky-tiled-plugins", marker = "extra == 'tiled'", specifier = ">=2.0.13,<3" },
     { name = "event-model", specifier = ">=1.23,<2" },
     { name = "h5py", specifier = ">=3.11,<4" },
-    { name = "keithley2460-ophyd", git = "https://github.com/BAMresearch/keithley2460_ophyd?tag=v0.1.0.dev0" },
-    { name = "keithley2460-ophyd", extras = ["visa"], marker = "extra == 'visa'", git = "https://github.com/BAMresearch/keithley2460_ophyd?tag=v0.1.0.dev0" },
+    { name = "keithley2460-ophyd", specifier = ">=0.1.0,<0.2" },
+    { name = "keithley2460-ophyd", extras = ["visa"], marker = "extra == 'visa'" },
     { name = "nbformat", specifier = ">=5.10,<6" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "openpyxl", specifier = ">=3.1,<4" },
@@ -1262,7 +1262,7 @@ dev = [
     { name = "bluesky-queueserver-api", specifier = ">=0.0.13,<0.1" },
     { name = "bluesky-tiled-plugins", specifier = ">=2.0.13,<3" },
     { name = "ipykernel", specifier = ">=6,<8" },
-    { name = "keithley2460-ophyd", extras = ["testing"], git = "https://github.com/BAMresearch/keithley2460_ophyd?tag=v0.1.0.dev0" },
+    { name = "keithley2460-ophyd", extras = ["testing"] },
     { name = "mkdocs", specifier = ">=1.6,<2" },
     { name = "mypy", specifier = ">=1.15,<3" },
     { name = "pytest", specifier = ">=8,<10" },
@@ -1276,7 +1276,7 @@ lint = [
 ]
 notebook = [{ name = "ipykernel", specifier = ">=6,<8" }]
 test = [
-    { name = "keithley2460-ophyd", extras = ["testing"], git = "https://github.com/BAMresearch/keithley2460_ophyd?tag=v0.1.0.dev0" },
+    { name = "keithley2460-ophyd", extras = ["testing"] },
     { name = "pytest", specifier = ">=8,<10" },
 ]
 
@@ -2172,14 +2172,18 @@ wheels = [
 
 [[package]]
 name = "keithley2460-ophyd"
-version = "0.1.0.dev0"
-source = { git = "https://github.com/BAMresearch/keithley2460_ophyd?tag=v0.1.0.dev0#de7d0530731f34c06aa96aac265c53d13b016588" }
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluesky" },
     { name = "event-model" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "ophyd" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/d9/d5e13027a5dbf4230ca2f721ffbe4c90d91a9b1983107dfbf3eacfe2f025/keithley2460_ophyd-0.1.0.tar.gz", hash = "sha256:74d1688de1107b91b9063c772d82f3abfd75bd3561f90f0e3959a9b0e2831294", size = 78927, upload-time = "2026-11-16T14:40:13.909Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/22/e5/c8ba45831e2d86683059d0c50895fa420973a0414a67b83d4c31e0920d7c/keithley2460_ophyd-0.1.0-py3-none-any.whl", hash = "sha256:90c0cab7a561f8059f95628c22eef1bc8ac793d35fcd623b3c8825f3e8bcb0cd", size = 54820, upload-time = "2026-11-16T14:40:12.503Z" },
 ]
 
 [package.optional-dependencies]

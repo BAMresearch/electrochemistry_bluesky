@@ -11,7 +11,7 @@ license = "BSD-3-Clause"
 license-files = ["LICENSE.md"]
 requires-python = ">=3.11"
 dependencies = [
-    "keithley2460-ophyd>=0.1.0.dev0,<0.2",
+    "keithley2460-ophyd>=0.1.0,<0.2",
     "bluesky>=1.16,<1.17",
     "event-model>=1.23,<2",
     "numpy>=2,<3",
@@ -65,10 +65,6 @@ dev = [
 
 [tool.uv]
 required-version = ">=0.12.19"
-
-# Until keithley2460-ophyd is on PyPI: a tagged release from GitHub.
-[tool.uv.sources]
-keithley2460-ophyd = { git = "https://github.com/BAMresearch/keithley2460_ophyd", tag = "v0.1.0.dev0" }
 
 [tool.setuptools.dynamic]
 version = {attr = "electrochemistry_bluesky.__version__"}
