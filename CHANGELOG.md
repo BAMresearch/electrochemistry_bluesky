@@ -2,6 +2,10 @@
 
 <!-- version list -->
 
+## v0.1.0 (2026-11-16)
+
+- Initial Release
+
 Initial public release, extracted from an internal development repository and
 built on `keithley2460-ophyd`:
 
