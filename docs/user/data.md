@@ -59,9 +59,16 @@ data from other instruments be aligned to the steps.
 With a `[tiled]` table in the session ([Sessions](sessions.md#tiled-store)),
 every run's documents are also kept in a Tiled store, under the run's Bluesky
 uid (`provenance/bluesky_uid` in the run file): the start document (sequence,
-limits, run-sheet row, equipment and the session: its text, resolved settings,
-`[sample]` and `[directions]`), the `readout` stream and the `sequence_events`
-stream. The HDF5 run file stays the record; the Tiled copy can be incomplete:
+limits, run-sheet row, equipment, the set-up names `facility`, `instrument`
+and `station`, and the session: its text, resolved settings, `[sample]` and
+`[directions]`), the `readout` stream and the `sequence_events` stream. The
+start document's `hints` name `t_s` as the readout's x axis, and the readout
+descriptor's hints name `voltage_v` and `current_a` as the fields to plot.
+While the run is open, rows reach a responsive Tiled server within the
+session's `flush_s` (default 10 s) plus the poll period; a slow or failing
+server delays them by its queue and the client's retries (up to 45 s per
+failed write). The HDF5 run file stays the record; the Tiled copy can be
+incomplete:
 
 - A background thread writes to Tiled, so a slow server never delays a run.
   If Tiled falls far behind (about 1,000 documents, some 15 minutes of data),
@@ -72,10 +79,12 @@ stream. The HDF5 run file stays the record; the Tiled copy can be incomplete:
 - If a Tiled write fails, the whole run goes to JSON-lines files in
   `tiled/backup` instead.
 - A killed RE Manager or notebook kernel loses the rows not yet written:
-  rows are sent in batches of 1,000, about 6 s at 6 ms sampling. The run's
-  start is in Tiled, without a stop.
-- `oe-recover-run` updates only the HDF5 file, not the Tiled copy. Serve a data folder's store
-with `oe-tiled ~/k2460-data/cell01`, then:
+  with a responsive server, about the last `flush_s` of data; with a slow
+  one, also what was still queued. The run's start is in Tiled, without a
+  stop.
+- `oe-recover-run` updates only the HDF5 file, not the Tiled copy.
+
+Serve a data folder's store with `oe-tiled ~/k2460-data/cell01`, then:
 
 ```python
 from tiled.client import from_uri
