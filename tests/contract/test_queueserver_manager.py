@@ -226,7 +226,9 @@ def test_pause_immediate_abort_recover_and_run_again(manager, tmp_path):
     items = queue_items(session, sheet, ["example-rest"], show=lambda _: None)
     enqueue(items, address, api=api)
     api.queue_start()
-    wait(lambda: api.status(reload=True)["manager_state"] == "executing_queue", 30, "run start")
+    # The run opens (and its file appears) only after prepare; a pause before
+    # that aborts the plan with no run. On a slow runner prepare takes seconds.
+    wait(lambda: any((tmp_path / "data").rglob("*.h5")), 60, "run start")
     time.sleep(2)
     api.re_pause(option="immediate")
     wait(lambda: api.status(reload=True)["manager_state"] == "paused", 30, "pause")
