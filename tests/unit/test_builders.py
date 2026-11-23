@@ -307,3 +307,16 @@ def test_cv_hold_after_the_discharge(start):
     assert sequence.repeat == RepeatBlock(0, 4, 2)
     with pytest.raises(ValidationError, match="cv_after must be charge or discharge"):
         cycling_sequence(2e-5, 0.005, 0.2, 2, cv_after="reduction")
+
+
+def test_cv_holds_are_limited_to_their_cc_current():
+    # A CC step that ends on its time limit short of the voltage must not be
+    # followed by a hold at the session's i_max_abs (B6, 20 Nov: 100 uA after a
+    # 24 uA CC step); the hold continues at the CC current instead.
+    soc = soc_position_sequence(-24.3e-6, 0.005, max_s=10, rest_s=5, cv_i_abs_min=12.2e-6)
+    assert soc.steps[1].i_limit == 24.3e-6
+    assert soc_position_sequence(-24.3e-6, 0.005, max_s=10, rest_s=5).steps[1].i_limit is None
+    cycle = cycling_sequence(
+        2e-5, 0.005, 0.2, 1, start="discharge", cv_after="discharge", cv_i_abs_min=4e-6
+    )
+    assert [s.i_limit for s in cycle.steps if s.mode == StepMode.VOLTAGE] == [2e-5]

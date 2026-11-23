@@ -509,6 +509,7 @@ def test_soc_position_with_a_voltage_hold(tmp_path):
     steps = load_run_sheet(path, limits)["hold"].sequence.steps
     assert [step.mode.value for step in steps] == ["current", "voltage", "rest"]
     assert (steps[1].level, steps[1].i_abs_min, steps[1].duration_s) == (3.0, 5e-6, 1200)
+    assert steps[1].i_limit == 1e-4  # the hold is limited to the row's CC current
 
 
 def test_pulse_train_row_with_a_relaxed_end(tmp_path):

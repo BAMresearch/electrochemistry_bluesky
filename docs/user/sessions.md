@@ -44,7 +44,7 @@ poll_period_s = 1.0            # how often the laptop reads new data
 [limits]
 v_min_abs = -3.0               # absolute voltage window, V
 v_max_abs = 3.0
-i_max_abs = 0.03               # A; also the current limit of a CV hold
+i_max_abs = 0.03               # A; the largest current of any step
 max_duration_s = 172800.0      # per run
 max_records = 1000000          # per run (the 2460 buffer holds 1,000,000)
 
@@ -206,8 +206,11 @@ replay). When the copy can be incomplete: [Data, Tiled store](data.md#tiled-stor
   compliance does.
 - In a voltage hold (CV) the 2460 measures current, not voltage. The held
   voltage is checked against the window before the run; during the hold the
-  current is limited to `i_max_abs` (compliance) and the hold ends on its
-  taper current (`cv_i_abs_min_a`) or its time limit.
+  current is limited to the row's CC current `|current_a|` (compliance; at
+  least 11 % of the measure range, below `i_max_abs`) and the hold ends on its
+  taper current (`cv_i_abs_min_a`) or its time limit. A CC step that ended on
+  its time limit short of the hold voltage therefore continues at its own
+  current until the voltage is reached, instead of jumping to it.
 - Between readings the instrument does not watch the voltage; only the
   compliance limit applies there.
 - The cell's rest voltage must be inside the window before a run.

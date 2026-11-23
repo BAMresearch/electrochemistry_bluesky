@@ -64,7 +64,11 @@ _FIXED: dict[str, tuple[str, str, str]] = {
         "upper bound of the window: in current and rest steps a reading above it "
         "stops the run with the output OFF",
     ),
-    "i_max_abs": ("limits", _A, "largest current magnitude; the current limit of CV holds"),
+    "i_max_abs": (
+        "limits",
+        _A,
+        "largest current magnitude; CV holds are limited to their CC current",
+    ),
     "vlimit_margin_v": (
         "limits",
         _V,

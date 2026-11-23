@@ -105,13 +105,13 @@ _COLUMNS = {
     "target_v": "soc_position: constant current until the cell voltage reaches this value "
     "in V, then rest_s at zero current.",
     "cycles": "cycling: number of cycles; each starts with the half set by start_with.",
-    "cv_i_abs_min_a": "cycling, soc_position: after a constant-current step, hold its end "
+    "cv_i_abs_min_a": "cycling, soc_position: after a constant-current step, hold its target "
     "voltage until |current| falls to this value in A (at most cv_max_s). cycling: which "
     "step is set by cv_after. Blank = no voltage hold.",
     "cv_after": "cycling with cv_i_abs_min_a: hold after the charge (at v_high) or after "
     "the discharge (at v_low); session [directions] words also work. Blank = charge.",
     "cv_max_s": "cycling, soc_position with cv_i_abs_min_a: time limit of the voltage hold in s. "
-    "Its current limit is the session's i_max_abs. Blank = 3600.",
+    "Its current limit is the CC current (|current_a|). Blank = 3600.",
     "max_step_s": "Time limit in s for each constant-current step; the step ends then "
     "even if its voltage was not reached. cycling: blank = 86400. soc_position: required.",
     "fast_interval_s": "Sampling interval in s during the first fast_window_s of every "
