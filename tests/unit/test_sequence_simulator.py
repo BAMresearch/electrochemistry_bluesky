@@ -351,3 +351,20 @@ def test_relaxed_end_ignores_the_voltage_under_load(limits):
     earlier = checks & (r["repeat_index"] < stopped_in)
     assert (r["voltage_v"][earlier] > 0.095).all()
     assert r["voltage_v"][-1] <= 0.095
+
+
+def test_cv_hold_after_a_timed_out_cc_step_continues_at_the_cc_current(limits, cell):
+    # The CC step ends on its time limit well above 0.9 V; the hold then
+    # sits in compliance at the CC current until the voltage reaches 0.9 V.
+    limits = replace(limits, i_max_abs=0.01)
+    cc = cc_step(-0.001, 0.9, 2, Sampling(0.1))
+    held = cv_step(0.9, 1e-4, 30, Sampling(0.1), i_limit=0.001)
+    result = simulate_sequence(Sequence((cc, held)), limits, cell)
+    current = result.readout["current_a"][result.readout["step_index"] == 1]
+    voltage = result.readout["voltage_v"][result.readout["step_index"] == 1]
+    assert voltage[0] > 0.9 + 0.01  # not at the hold voltage when the hold starts
+    assert current[0] == -0.001
+    assert np.all(np.abs(current) <= 0.001)
+    unlimited = simulate_sequence(Sequence((cc, replace(held, i_limit=None))), limits, cell)
+    jump = unlimited.readout["current_a"][unlimited.readout["step_index"] == 1]
+    assert abs(jump[0]) > 0.001  # without the limit the hold jumps above the CC current

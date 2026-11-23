@@ -187,13 +187,14 @@ def simulate_sequence(
             response = -math.expm1(-interval / tau_s)
             for k in range(1, count + 1):
                 if step.mode == StepMode.VOLTAGE:
+                    i_limit = limits.i_max_abs if step.i_limit is None else step.i_limit
                     drive = step.level - float(np.interp(soc, cell.ocv_soc, cell.ocv_v))
-                    rc_v, charge_c = _hold_voltage(drive, rc_v, interval, cell, limits.i_max_abs)
+                    rc_v, charge_c = _hold_voltage(drive, rc_v, interval, cell, i_limit)
                     soc += charge_c / charge_as
                     # The source holds the setpoint against the OCV change too.
                     drive = step.level - float(np.interp(soc, cell.ocv_soc, cell.ocv_v))
                     current = (drive - rc_v) / cell.r0_ohm
-                    current = max(-limits.i_max_abs, min(limits.i_max_abs, current))
+                    current = max(-i_limit, min(i_limit, current))
                 else:
                     current = step.level
                     soc += current * interval / charge_as

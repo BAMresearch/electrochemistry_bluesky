@@ -239,7 +239,9 @@ def cycling_sequence(
     """Repeat charge/rest and discharge/rest halves, ``start`` first.
 
     With ``cv_i_abs_min`` a CV hold follows the CC step of the ``cv_after`` half:
-    at v_high after the charge, or at v_low after the discharge.
+    at v_high after the charge, or at v_low after the discharge. The hold's
+    current limit is ``current_a``: a CC step that ended on ``max_step_s`` short
+    of its voltage continues at that current until the hold voltage is reached.
     """
     positive(current_a, "current_a")
     number(v_low, "v_low")
@@ -257,9 +259,9 @@ def cycling_sequence(
     discharge = [cc_step(-current_a, v_low, max_step_s, sampling)]
     if cv_i_abs_min is not None:
         if cv_after == "charge":
-            charge.append(cv_step(v_high, cv_i_abs_min, cv_max_s, sampling))
+            charge.append(cv_step(v_high, cv_i_abs_min, cv_max_s, sampling, i_limit=current_a))
         else:
-            discharge.append(cv_step(v_low, cv_i_abs_min, cv_max_s, sampling))
+            discharge.append(cv_step(v_low, cv_i_abs_min, cv_max_s, sampling, i_limit=current_a))
     charge.append(rest)
     discharge.append(rest)
     steps = tuple(charge + discharge if start == "charge" else discharge + charge)
@@ -276,10 +278,15 @@ def soc_position_sequence(
     cv_i_abs_min: float | None = None,
     cv_max_s: float = 3600.0,
 ) -> Sequence:
-    """CC toward target_v, then rest; with ``cv_i_abs_min`` a CV hold comes between."""
+    """CC toward target_v, then rest; with ``cv_i_abs_min`` a CV hold comes between.
+
+    The hold's current limit is ``|current_a|``: a CC step that ended on
+    ``max_s`` short of target_v continues at that current until target_v is
+    reached, then tapers to ``cv_i_abs_min``.
+    """
     positive(cv_max_s, "cv_max_s")
     sampling = Sampling(interval_s)
     steps = [cc_step(current_a, target_v, max_s, sampling)]
     if cv_i_abs_min is not None:
-        steps.append(cv_step(target_v, cv_i_abs_min, cv_max_s, sampling))
+        steps.append(cv_step(target_v, cv_i_abs_min, cv_max_s, sampling, i_limit=abs(current_a)))
     return Sequence((*steps, rest_step(rest_s, sampling)))

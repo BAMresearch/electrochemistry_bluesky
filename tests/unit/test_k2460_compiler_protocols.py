@@ -146,3 +146,13 @@ def feed(replay, readings, sources=None, times=None, status=None, source_status=
         np.zeros(n, dtype=int) if status is None else status,
         np.zeros(n, dtype=int) if source_status is None else source_status,
     )
+
+
+def test_soc_position_hold_is_compiled_with_the_cc_current_as_its_limit():
+    from electrochemistry_bluesky.builders import soc_position_sequence
+
+    limits = SafetyLimits(-0.1, 3.0, 1e-4, 1e5, 10**6)
+    sequence = soc_position_sequence(-24.3e-6, 0.005, max_s=60, rest_s=10, cv_i_abs_min=12.2e-6)
+    program = compile_program(sequence, limits)
+    hold = program.sources[program.steps[1].source_entry - 1]
+    assert (hold.mode, hold.level, hold.limit) == ("voltage", 0.005, 24.3e-6)

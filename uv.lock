@@ -1245,7 +1245,7 @@ requires-dist = [
     { name = "bluesky-tiled-plugins", marker = "extra == 'tiled'", specifier = "==2.0.13" },
     { name = "event-model", specifier = ">=1.23,<2" },
     { name = "h5py", specifier = ">=3.11,<4" },
-    { name = "keithley2460-ophyd", specifier = ">=0.1.0,<0.2" },
+    { name = "keithley2460-ophyd", specifier = ">=0.2.0,<0.3" },
     { name = "keithley2460-ophyd", extras = ["visa"], marker = "extra == 'visa'" },
     { name = "nbformat", specifier = ">=5.10,<6" },
     { name = "numpy", specifier = ">=2,<3" },
@@ -2172,7 +2172,7 @@ wheels = [
 
 [[package]]
 name = "keithley2460-ophyd"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bluesky" },
@@ -2181,9 +2181,9 @@ dependencies = [
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "ophyd" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/d9/d5e13027a5dbf4230ca2f721ffbe4c90d91a9b1983107dfbf3eacfe2f025/keithley2460_ophyd-0.1.0.tar.gz", hash = "sha256:74d1688de1107b91b9063c772d82f3abfd75bd3561f90f0e3959a9b0e2831294", size = 78927, upload-time = "2026-11-16T14:40:13.909Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/e2/a2d163605cb4fc7582b970d94916b791a59eb2a21b80b3e67704fce3005f/keithley2460_ophyd-0.2.0.tar.gz", hash = "sha256:5dbe69f841300236636eb071010476a4f9a9e01e98c0b3a08196e22c3c85a210", size = 83002, upload-time = "2026-11-23T13:22:48.39Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/22/e5/c8ba45831e2d86683059d0c50895fa420973a0414a67b83d4c31e0920d7c/keithley2460_ophyd-0.1.0-py3-none-any.whl", hash = "sha256:90c0cab7a561f8059f95628c22eef1bc8ac793d35fcd623b3c8825f3e8bcb0cd", size = 54820, upload-time = "2026-11-16T14:40:12.503Z" },
+    { url = "https://files.pythonhosted.org/packages/60/4c/02b61559e002ed30c793ec75cb34690a3a623565d5910f3d6ebef81b9b8c/keithley2460_ophyd-0.2.0-py3-none-any.whl", hash = "sha256:31af6cd87cb9c42847880058617e7b9a029ff1f98317775cc2aa9600348ac07f", size = 56321, upload-time = "2026-11-23T13:22:46.814Z" },
 ]
 
 [package.optional-dependencies]

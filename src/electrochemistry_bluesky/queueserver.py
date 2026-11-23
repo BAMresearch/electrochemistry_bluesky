@@ -420,10 +420,23 @@ def validate_rows(
                 + "".join(
                     f", {note}"
                     for note in direction_notes(runs[measurement_id].row, session.directions)
-                ),
+                )
+                + _hold_note(request.sequence),
             )
         )
     return results
+
+
+def _hold_note(sequence: Any) -> str:
+    """Flag a CV hold that ends at its first reading: taper at or above its limit.
+
+    Resistor checks use that on purpose; on a cell it means the hold does nothing.
+    """
+    for step in sequence.steps:
+        if step.i_limit is not None and step.i_abs_min is not None:
+            if step.i_abs_min >= step.i_limit:
+                return ", CV hold ends at once (cv_i_abs_min_a >= |current_a|)"
+    return ""
 
 
 def validate_main(argv: list[str] | None = None) -> int:
