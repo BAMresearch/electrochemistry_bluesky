@@ -206,11 +206,15 @@ replay). When the copy can be incomplete: [Data, Tiled store](data.md#tiled-stor
   compliance does.
 - In a voltage hold (CV) the 2460 measures current, not voltage. The held
   voltage is checked against the window before the run; during the hold the
-  current is limited to the row's CC current `|current_a|` (compliance; at
-  least 11 % of the measure range, below `i_max_abs`) and the hold ends on its
-  taper current (`cv_i_abs_min_a`) or its time limit. A CC step that ended on
-  its time limit short of the hold voltage therefore continues at its own
-  current until the voltage is reached, instead of jumping to it.
+  current is limited to the row's CC current `|current_a|` (compliance) and the
+  hold ends on its taper current (`cv_i_abs_min_a`) or its time limit. A CC
+  step that ended on its time limit short of the hold voltage therefore
+  continues at its own current until the voltage is reached, instead of
+  jumping to it. The 2460 needs that limit to be at least 10.6 % of the fixed
+  measure range, so validation refuses a hold row whose current lies just
+  above a range boundary (between 1.0 and 1.1 times 1 µA, 10 µA, 100 µA,
+  1 mA, ...): change the current slightly. A taper at or above the current
+  ends the hold at once; `oe-validate` says so.
 - Between readings the instrument does not watch the voltage; only the
   compliance limit applies there.
 - The cell's rest voltage must be inside the window before a run.

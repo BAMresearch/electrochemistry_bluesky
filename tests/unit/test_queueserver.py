@@ -25,6 +25,7 @@ from electrochemistry_bluesky.queueserver import (  # noqa: E402
     queue_items,
     sequence_digest,
     sheet_digest,
+    validate_rows,
 )
 from electrochemistry_bluesky.run_file import read_run_file  # noqa: E402
 from electrochemistry_bluesky.run_sheet import (  # noqa: E402
@@ -426,3 +427,20 @@ def test_every_run_names_the_set_up_that_made_it(tmp_path, session, sheet):
     namespace["RE"](namespace["run_from_sheet"](**enqueued(named, sheet, "example-rest")))
     assert starts[0]["facility"] == "BAM" and starts[0]["station"] == "glovebox-1"
     assert starts[0]["hints"] == {"dimensions": [[["t_s"], "readout"]]}
+
+
+def test_validate_rows_flags_a_hold_that_ends_at_once(session, tmp_path):
+    # A taper at or above the hold's limit (its CC current) ends the hold at
+    # its first reading: allowed (resistor checks use it), but shown (brief 21).
+    path = tmp_path / "holds.xlsx"
+    hold = dict(protocol="soc_position", target_v=0.5, max_step_s=60, rest_s=10, current_a=1e-4)
+    write_run_sheet(
+        path,
+        [
+            dict(hold, measurement_id="ends", cv_i_abs_min_a=2e-4),
+            dict(hold, measurement_id="tapers", cv_i_abs_min_a=2e-5),
+        ],
+    )
+    summaries = {mid: summary for mid, problem, summary in validate_rows(hardware(session), path)}
+    assert summaries["ends"].endswith("CV hold ends at once (cv_i_abs_min_a >= |current_a|)")
+    assert "ends at once" not in summaries["tapers"]
