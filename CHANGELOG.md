@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.2.1 (2026-11-23)
+
+### Bug Fixes
+
+- **builders**: Limit CV holds to the current of their CC step
+  ([`918ce76`](https://github.com/BAMresearch/electrochemistry_bluesky/commit/918ce76fb82ebd77f8d7e6e6a411a75b61458cef))
+
+- **queueserver**: Validation flags a CV hold that ends at once
+  ([`00be539`](https://github.com/BAMresearch/electrochemistry_bluesky/commit/00be5399bd8c406a6920435353158b31a28daf48))
+
+### Build System
+
+- **deps**: Require keithley2460-ophyd 0.2.0 (CV hold current limit)
+  ([`9672359`](https://github.com/BAMresearch/electrochemistry_bluesky/commit/96723598fe3fa76b6fa12c0cdeb74c9c4172a6cc))
+
+
 ## v0.2.0 (2026-11-17)
 
 ### Bug Fixes
