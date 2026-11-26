@@ -20,6 +20,10 @@ OE_SESSION=~/k2460-session.toml uv run --locked start-re-manager \
 `qserver/start-k2460-re-manager.sh ~/k2460-session.toml` does the redis and
 RE Manager steps in one command (after `uv sync` and the session copy).
 
+`qserver/start-k2460-dashboard.sh ~/k2460-session.toml` starts the read-only
+event-timeline dashboard for the session's local Tiled
+([Dashboard](../docs/user/operation.md#dashboard)).
+
 In another terminal:
 
 ```sh
