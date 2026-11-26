@@ -98,6 +98,7 @@ time zero is logged within about 0.1 ms of that edge. If the session sets
 - The viewer notebook for the data ([Data and the viewer](data.md)). It only
   reads files, so it can stay open and be restarted at any time without
   affecting a run.
+- The [dashboard](#dashboard), with a session that keeps a local Tiled.
 
 ## 6. Stop a run, recover
 
@@ -171,6 +172,40 @@ qserver manager stop
 For another cell, wiring or window, start the RE Manager again with that
 session file (step 2). At the end of the day, disconnect the cell before
 switching the 2460 off. `redis-cli shutdown` stops redis.
+
+## Dashboard
+
+A timeline of the session's runs, the selected run's data and the queue, in
+[event-timeline-tiled](https://github.com/BAMresearch/event_timeline_tiled)
+(v0.1.0 or later). It only reads, from the session's local Tiled
+(`[tiled] local = true`) and the RE Manager's status, so it can be started and
+stopped at any time without affecting a run. Under rootless Podman, as its own
+stack beside any other dashboard on the computer, on `http://127.0.0.1:8081/`.
+
+Once per event-timeline-tiled release (checked out in
+`~/code/event_timeline_tiled`, with its compose binary and Podman socket set up
+as its single-host guide says), with network access:
+
+```sh
+qserver/start-k2460-dashboard.sh --install
+```
+
+After `qserver environment open` (the session's Tiled runs only while the
+environment is open, on a new port with a new key each time), in its own
+terminal or `screen`:
+
+```sh
+qserver/start-k2460-dashboard.sh ~/k2460-session.toml   # Ctrl-C stops it
+```
+
+Restart it after every `qserver environment open`, and for another session: it
+shows the runs of one session only. With an RE Manager on another control
+address, set `QSERVER_ZMQ_CONTROL_ADDRESS` as for `qserver`. Grafana's admin
+password is read from `~/.config/k2460-dashboard/grafana-admin.password`
+(mode 600); once the stack runs, `qserver/start-k2460-dashboard.sh --viewer`
+creates the read-only login `k2460` with the password in
+`grafana-viewer.password` beside it. The adapter uses the session server's only
+key, which could also write: a single-user Tiled has no read-only keys.
 
 ## Fallback: one notebook per run
 
