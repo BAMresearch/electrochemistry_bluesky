@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-11-26)
+
+### Features
+
+- A launcher for the event-timeline dashboard of a session's local Tiled
+  ([`088dc91`](https://github.com/BAMresearch/electrochemistry_bluesky/commit/088dc91eb46895844cf8e99a26d6bae963e7040c))
+
+
 ## v0.2.1 (2026-11-23)
 
 ### Bug Fixes
